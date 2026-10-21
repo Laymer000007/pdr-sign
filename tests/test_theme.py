@@ -72,3 +72,10 @@ def test_gnome_detection(monkeypatch: pytest.MonkeyPatch, raw: str, expected: st
 def test_gnome_detection_without_gsettings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(theme.shutil, "which", lambda _: None)
     assert theme.gnome_color_scheme() is None
+
+
+@BOTH
+def test_disabled_icons_are_dimmer_than_text(t: Tokens) -> None:
+    dim = theme.disabled_color(t)
+    assert contrast_ratio(dim, t.window) < contrast_ratio(t.text, t.window) / 2
+    assert contrast_ratio(dim, t.window) > 1.5  # still visible

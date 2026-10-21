@@ -248,3 +248,34 @@ def test_drop_opens_pdfs_only(window: MainWindow, text_pdf: Path, tmp_path: Path
     )
     window.dropEvent(event)
     assert [t.doc.path.name for t in window.tabs] == ["three-pages.pdf"]
+
+
+def test_header_print_button(
+    monkeypatch: pytest.MonkeyPatch, window: MainWindow, text_pdf: Path
+) -> None:
+    from pdr_sign.ui import printing
+    from tests.conftest import trigger_shortcut
+
+    calls: list[str] = []
+    monkeypatch.setattr(
+        printing, "run_print_dialog", lambda _w, _p, doc, _c: calls.append(doc.path.name)
+    )
+    header = window.header
+    button = header.print_button
+    assert button.accessibleName() == "Print"
+    assert button.toolTip() == "Print (Ctrl+P)"
+    assert not button.isEnabled() and not header.print_action.isEnabled()
+
+    window.open_paths([str(text_pdf)])
+    assert button.isEnabled() and header.print_action.isEnabled()
+    layout = header.layout()
+    assert layout is not None
+    assert layout.indexOf(button) == layout.indexOf(header.sidebar_button) + 1
+
+    button.click()
+    header.print_action.trigger()  # the overflow menu entry
+    trigger_shortcut(window, "Ctrl+P")
+    assert calls == ["three-pages.pdf"] * 3
+
+    window.close_tab(window.tabs[0])
+    assert not button.isEnabled()

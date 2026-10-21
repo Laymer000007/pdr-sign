@@ -72,6 +72,21 @@ DARK = Tokens(
 )
 
 
+def mix(a: str, b: str, amount: float) -> str:
+    """``a`` moved ``amount`` (0..1) of the way towards ``b``."""
+    ca, cb = QColor(a), QColor(b)
+    channels = (
+        round(x + (y - x) * amount)
+        for x, y in ((ca.red(), cb.red()), (ca.green(), cb.green()), (ca.blue(), cb.blue()))
+    )
+    return "#{:02X}{:02X}{:02X}".format(*channels)
+
+
+def disabled_color(t: Tokens) -> str:
+    """Icon colour for disabled controls: clearly dimmer than ``text`` in both themes."""
+    return mix(t.text, t.window, 0.6)
+
+
 def tokens_for(scheme: Scheme) -> Tokens:
     return DARK if scheme == "dark" else LIGHT
 

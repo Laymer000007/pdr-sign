@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 
 from pdr_sign.services import layout
 from pdr_sign.ui import icons
-from pdr_sign.ui.theme import HEADER_HEIGHT, SPACING, Tokens
+from pdr_sign.ui.theme import HEADER_HEIGHT, SPACING, Tokens, disabled_color
 
 
 def icon_button(name: str, label: str, shortcut: str = "") -> QToolButton:
@@ -59,6 +59,8 @@ class HeaderBar(QWidget):
         self.sidebar_button = self._add_icon(icon_button("panel-left", "Sidebar", "F9"))
         self.sidebar_button.setCheckable(True)
         self.sidebar_button.toggled.connect(self.sidebar_toggled)
+        self.print_button = self._add_icon(icon_button("printer", "Print", "Ctrl+P"))
+        self.print_button.clicked.connect(self.print_requested)
 
         self.page_field = QLineEdit()
         self.page_field.setObjectName("PageField")
@@ -90,6 +92,9 @@ class HeaderBar(QWidget):
         menu = QMenu(self.menu_button)
         self.print_action = QAction("Print…", menu)
         self.print_action.setShortcut("Ctrl+P")
+        # Shown in the menu for discoverability, but the window owns Ctrl+P; a second
+        # window-wide binding would make the shortcut ambiguous and fire neither.
+        self.print_action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
         self.print_action.setShortcutVisibleInContextMenu(True)
         self.print_action.triggered.connect(self.print_requested)
         menu.addAction(self.print_action)
@@ -104,6 +109,7 @@ class HeaderBar(QWidget):
         row.setSpacing(SPACING // 2)
         row.addWidget(self.open_button)
         row.addWidget(self.sidebar_button)
+        row.addWidget(self.print_button)
         row.addStretch(1)
         row.addWidget(self.page_field)
         row.addWidget(self.page_count)
@@ -142,8 +148,9 @@ class HeaderBar(QWidget):
         return menu
 
     def set_tokens(self, t: Tokens) -> None:
+        dim = disabled_color(t)
         for button in self._icon_buttons:
-            button.setIcon(icons.icon(str(button.property("iconName")), t.text))
+            button.setIcon(icons.icon(str(button.property("iconName")), t.text, disabled=dim))
 
     def set_document(self, page_count: int | None) -> None:
         """Enable the document controls, or disable them when nothing is open."""
@@ -151,6 +158,7 @@ class HeaderBar(QWidget):
         for widget in self.document_controls:
             widget.setVisible(has_doc)
         self.print_action.setEnabled(has_doc)
+        self.print_button.setEnabled(has_doc)
         if page_count is not None:
             self.page_field.setValidator(QIntValidator(1, page_count, self.page_field))
             self.page_count.setText(f"/ {page_count}")

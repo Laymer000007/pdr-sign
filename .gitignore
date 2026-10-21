@@ -12,3 +12,6 @@ dist/
 *.deb
 *.snap
 *.pdr-backup
+
+# Real-world sample forms with personal data. Never commit.
+samples/private/
