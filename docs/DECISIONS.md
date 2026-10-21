@@ -111,3 +111,46 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   Fit to page (default) or Actual size, centred. Page ranges come from Qt's
   `QPageRanges`, so "1-3,7" works. Copies and collation are left to the printer
   driver. The `QPrinter` is kept for the session, so the chosen printer is remembered.
+
+## Phase 3
+
+- **Field values are keyed by fully qualified field name**, so a radio group's kids and
+  a name printed twice stay in step. Check boxes and radios store the selected "on"
+  state (`""` = off), list boxes a tuple of export values, and the rest a string.
+- **PyMuPDF quirks handled in `forms.apply_values`:** any string (even `"Off"`) checks
+  a box or radio, so booleans are written, and only the radio kid being selected is
+  touched (MuPDF turns its siblings off). Multiple list selections are written as
+  `/V` and `/I` directly. Field data is written to the object that holds it: the
+  parent field when the widget is only a kid.
+- **Free text in an editable combo is appended to its `/Opt` list.** pdf.js (Firefox's
+  viewer) draws combos as a plain `<select>` and only shows listed values. This is
+  legal PDF; the cost is that the typed value becomes a choice in that document.
+- **Tab order** follows the PDF's widget order: pages in order, then `/Annots` order.
+  A page's `/Tabs` entry is not interpreted.
+- **Field editors:** text, combo and list fields are real Qt widgets in
+  `QGraphicsProxyWidget`s; check boxes and radios are painted. They are children of
+  their page item, so they scale with zoom. The fill (`field_fill` token) is opaque,
+  to hide the PDF's own, possibly stale, appearance underneath. Font: Helvetica at
+  the field's size, or an auto size from the box height. Comb fields edit as
+  centred text; the saved appearance (by MuPDF) is a true per-cell comb. Read-only
+  and signature fields get no editor.
+- **Edits reach the model on `editingFinished` or focus-out.** While typing, Ctrl+Z is
+  the editor's own undo; afterwards it's the document's undo stack.
+- **Overlay items** are children of their page (page points). A new Text box joins
+  the model only once something is typed; an empty one just disappears. Text and Date
+  are one-shot tools. Checkmark, Cross and Dot stay active for ticking several boxes,
+  keep a square shape when resized, and save their box height as the glyph size
+  (ZapfDingbats `4`, `8`, `l`, so no font embedding is needed). Every item saves as a
+  FreeText annotation tagged `/PDR 1` and `/PDRKind`. `read_overlays(remove=True)` is
+  ready for Phase 5 to reopen them as editable items.
+- **Fill & Sign is an app-wide mode** (Ctrl+E, the header pill, Done), like the
+  sidebar. Dragging selects text only when no tool is active.
+- **Initials and Signature tools are added in Phase 4.** No disabled placeholder
+  buttons until then.
+- **The Save UI comes in Phase 5.** In Phase 3 the save path (`apply_values` and
+  `write_overlays` into a copy) was checked with `tools/fill_check.py` and pdf.js
+  6.4.299 (the engine in Firefox's viewer), rendered in the app's browser pane.
+  A headless run of the snap Firefox hung, so pdf.js is used directly.
+- **The text-size control is a −/+ stepper.** QSpinBox's arrows don't survive the
+  app stylesheet under Fusion.
+- **A "• " marker** on the tab and window title shows unsaved Fill & Sign changes.

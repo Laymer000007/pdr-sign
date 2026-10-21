@@ -87,6 +87,117 @@ def rich_pdf(tmp_path: Path) -> Path:
     return make_rich_pdf(tmp_path / "rich.pdf")
 
 
+def _widget(
+    page: pymupdf.Page, kind: int, name: str, rect: tuple[float, ...], **kw: object
+) -> None:
+    w = pymupdf.Widget()
+    w.field_type = kind
+    w.field_name = name
+    w.rect = pymupdf.Rect(rect)
+    for key, value in kw.items():
+        setattr(w, key, value)
+    page.add_widget(w)
+
+
+def _radio_group(
+    doc: pymupdf.Document, page: pymupdf.Page, name: str, states: list[str], top: float
+) -> None:
+    """A radio group as real forms build it: one parent field, one kid per option.
+
+    (PyMuPDF's add_widget makes each radio its own field, which real forms don't.)
+    """
+    parent = doc.get_new_xref()
+    kids = []
+    for i, state in enumerate(states):
+        kid = doc.get_new_xref()
+        x0 = 72 + i * 40
+        y0 = page.rect.height - top - 14  # PDF space is bottom-up
+        doc.update_object(
+            kid,
+            f"<< /Type /Annot /Subtype /Widget /Parent {parent} 0 R "
+            f"/Rect [{x0} {y0} {x0 + 14} {y0 + 14}] /F 4 /P {page.xref} 0 R /AS /Off "
+            f"/MK << /BC [0 0 0] /BG [1 1 1] /CA (l) >> "
+            f"/AP << /N << /{state} null /Off null >> >> >>",
+        )
+        kids.append(f"{kid} 0 R")
+    doc.update_object(
+        parent, f"<< /FT /Btn /Ff 49152 /T ({name}) /V /Off /Kids [{' '.join(kids)}] >>"
+    )
+    annots = doc.xref_get_key(page.xref, "Annots")[1]
+    doc.xref_set_key(page.xref, "Annots", annots.replace("]", " " + " ".join(kids) + "]"))
+    cat = doc.pdf_catalog()
+    fields = doc.xref_get_key(cat, "AcroForm/Fields")[1]
+    doc.xref_set_key(cat, "AcroForm/Fields", fields.replace("]", f" {parent} 0 R]"))
+
+
+def make_form_pdf(path: Path) -> Path:
+    """An AcroForm with every field type, over two pages."""
+    doc = pymupdf.open()
+    p1 = doc.new_page(width=595, height=842)
+    p1.insert_text((72, 60), "Application form", fontsize=16)
+    T = pymupdf  # noqa: N806 - short alias keeps the field table readable
+    _widget(
+        p1,
+        T.PDF_WIDGET_TYPE_TEXT,
+        "name",
+        (72, 72, 300, 92),
+        text_fontsize=11,
+        field_label="Full name",
+    )
+    _widget(
+        p1,
+        T.PDF_WIDGET_TYPE_TEXT,
+        "notes",
+        (72, 100, 300, 160),
+        field_flags=T.PDF_TX_FIELD_IS_MULTILINE,
+        text_fontsize=0,
+    )
+    _widget(
+        p1, T.PDF_WIDGET_TYPE_TEXT, "code", (320, 72, 440, 92), text_maxlen=6, field_flags=1 << 24
+    )  # comb
+    _widget(
+        p1, T.PDF_WIDGET_TYPE_TEXT, "ref", (320, 100, 440, 120), field_value="R-1", field_flags=1
+    )  # read-only
+    _widget(p1, T.PDF_WIDGET_TYPE_CHECKBOX, "agree", (72, 170, 86, 184), field_value=False)
+    _widget(
+        p1,
+        T.PDF_WIDGET_TYPE_COMBOBOX,
+        "country",
+        (72, 230, 250, 250),
+        choice_values=["ZA", "NL", "DE"],
+        field_value="ZA",
+    )
+    _widget(
+        p1,
+        T.PDF_WIDGET_TYPE_COMBOBOX,
+        "city",
+        (300, 230, 480, 250),
+        choice_values=["Cape Town", "Durban"],
+        field_value="",
+        field_flags=1 << 18,
+    )  # editable
+    _widget(
+        p1,
+        T.PDF_WIDGET_TYPE_LISTBOX,
+        "fruit",
+        (72, 260, 250, 320),
+        choice_values=["apple", "pear", "plum"],
+        field_value="pear",
+    )
+    p2 = doc.new_page(width=595, height=842)
+    _widget(p2, T.PDF_WIDGET_TYPE_TEXT, "city_again", (72, 72, 300, 92))
+    _widget(p2, T.PDF_WIDGET_TYPE_SIGNATURE, "signature", (300, 700, 500, 750))
+    _radio_group(doc, doc[0], "colour", ["red", "green", "blue"], top=200)
+    doc.save(path)
+    doc.close()
+    return path
+
+
+@pytest.fixture
+def form_pdf(tmp_path: Path) -> Path:
+    return make_form_pdf(tmp_path / "form.pdf")
+
+
 @pytest.fixture
 def encrypted_pdf(tmp_path: Path) -> Path:
     src = make_text_pdf(tmp_path / "plain.pdf", 1)

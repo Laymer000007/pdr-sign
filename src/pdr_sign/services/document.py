@@ -9,6 +9,8 @@ from __future__ import annotations
 import itertools
 import threading
 from collections import OrderedDict
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -108,6 +110,20 @@ class Document:
                 doc.close()
                 raise DocumentError(f"{path.name} has no pages")
         return cls(doc, path, password)
+
+    @contextmanager
+    def locked(self) -> Iterator[pymupdf.Document]:
+        """The underlying PyMuPDF document, held under ``MUPDF_LOCK``.
+
+        For other services (forms, stamps); the UI never touches PyMuPDF directly.
+        """
+        with MUPDF_LOCK:
+            yield self._doc
+
+    def invalidate_render(self) -> None:
+        """Forget cached text after the in-memory PDF changed."""
+        with MUPDF_LOCK:
+            self._words.clear()
 
     def close(self) -> None:
         with MUPDF_LOCK:

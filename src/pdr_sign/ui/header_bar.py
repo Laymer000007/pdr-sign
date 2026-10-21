@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QPushButton,
     QToolButton,
     QWidget,
 )
@@ -45,6 +46,7 @@ class HeaderBar(QWidget):
     zoom_preset_requested = Signal(object)  # float or "fit-width"/"fit-page"
     about_requested = Signal()
     search_requested = Signal()
+    fill_toggled = Signal(bool)
     print_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -87,6 +89,15 @@ class HeaderBar(QWidget):
         self.search_button = self._add_icon(icon_button("search", "Search", "Ctrl+F"))
         self.search_button.clicked.connect(self.search_requested)
 
+        self.fill_button = QPushButton("Fill && Sign")  # "&&": a single & would mark a mnemonic
+        self.fill_button.setObjectName("FillSignPill")
+        self.fill_button.setProperty("primary", True)
+        self.fill_button.setCheckable(True)
+        self.fill_button.setAccessibleName("Fill & Sign")
+        self.fill_button.setToolTip("Fill & Sign (Ctrl+E)")
+        self.fill_button.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        self.fill_button.toggled.connect(self.fill_toggled)
+
         self.menu_button = self._add_icon(icon_button("ellipsis-vertical", "Main menu"))
         self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(self.menu_button)
@@ -119,6 +130,9 @@ class HeaderBar(QWidget):
         row.addWidget(self.zoom_in_button)
         row.addStretch(1)
         row.addWidget(self.search_button)
+        row.addSpacing(SPACING // 2)
+        row.addWidget(self.fill_button)
+        row.addSpacing(SPACING // 2)
         row.addWidget(self.menu_button)
 
         self.document_controls: list[QWidget] = [
@@ -129,6 +143,7 @@ class HeaderBar(QWidget):
             self.zoom_button,
             self.zoom_in_button,
             self.search_button,
+            self.fill_button,
         ]
         self.set_document(None)
 
@@ -151,6 +166,7 @@ class HeaderBar(QWidget):
         dim = disabled_color(t)
         for button in self._icon_buttons:
             button.setIcon(icons.icon(str(button.property("iconName")), t.text, disabled=dim))
+        self.fill_button.setIcon(icons.icon("pen-line", t.on_accent, 16))
 
     def set_document(self, page_count: int | None) -> None:
         """Enable the document controls, or disable them when nothing is open."""
@@ -169,6 +185,11 @@ class HeaderBar(QWidget):
 
     def set_zoom(self, zoom: float, mode: str) -> None:
         self.zoom_button.setText(zoom_label(zoom, mode))
+
+    def set_fill_checked(self, checked: bool) -> None:
+        self.fill_button.blockSignals(True)
+        self.fill_button.setChecked(checked)
+        self.fill_button.blockSignals(False)
 
     def set_sidebar_checked(self, checked: bool) -> None:
         self.sidebar_button.blockSignals(True)

@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>pdf.js check</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/web/pdf_viewer.css">
+<style>
+  body { margin: 0; background: #ddd; }
+  #viewerContainer { position: absolute; inset: 0; overflow: auto; }
+</style>
+<div id="viewerContainer"><div id="viewer" class="pdfViewer"></div></div>
+<script type="module">
+  const base = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299";
+  const pdfjsLib = await import(`${base}/build/pdf.mjs`);
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `${base}/build/pdf.worker.mjs`;
+  globalThis.pdfjsLib = pdfjsLib;
+  const { PDFViewer, EventBus, PDFLinkService } = await import(`${base}/web/pdf_viewer.mjs`);
+  const container = document.getElementById("viewerContainer");
+  const eventBus = new EventBus();
+  const linkService = new PDFLinkService({ eventBus });
+  const viewer = new PDFViewer({
+    container, eventBus, linkService,
+    annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS,  // what Firefox uses
+  });
+  linkService.setViewer(viewer);
+  eventBus.on("pagesinit", () => { viewer.currentScaleValue = "page-width"; });
+  eventBus.on("annotationlayerrendered", () => { window.layersRendered = (window.layersRendered || 0) + 1; });
+  const file = new URLSearchParams(location.search).get("file");
+  const doc = await pdfjsLib.getDocument({ url: file }).promise;
+  viewer.setDocument(doc);
+  linkService.setDocument(doc);
+  const fields = await doc.getFieldObjects();
+  window.fieldValues = Object.fromEntries(
+    Object.entries(fields || {}).map(([name, objs]) => [name, objs.map(o => o.value)]));
+</script>

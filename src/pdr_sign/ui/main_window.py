@@ -91,6 +91,7 @@ class MainWindow(QMainWindow):
 
         self.tabs: list[DocumentTab] = []
         self._printer: QPrinter | None = None  # kept so printer choices persist
+        self.fill_mode = False
         self._connect()
         self._add_shortcuts()
         self.tokens = tokens
@@ -110,6 +111,7 @@ class MainWindow(QMainWindow):
         h.about_requested.connect(lambda: dialogs.AboutDialog(self).exec())
         h.search_requested.connect(lambda: self._with_tab(lambda t: t.open_search()))
         h.print_requested.connect(self.print_current)
+        h.fill_toggled.connect(self.set_fill_mode)
         self.empty_state.open_requested.connect(self.browse)
         self.empty_state.recent_requested.connect(lambda p: self.open_paths([p]))
         self.tab_bar.currentChanged.connect(self._on_tab_changed)
@@ -138,6 +140,15 @@ class MainWindow(QMainWindow):
             lambda: self._with_tab(lambda t: t.view.copy_selection()),
         )
         add([QKeySequence.StandardKey.Print], self.print_current)
+        add(["Ctrl+E"], lambda: self.set_fill_mode(not self.fill_mode))
+        add(
+            [QKeySequence.StandardKey.Undo],
+            lambda: self._with_tab(lambda t: t.model.undo_stack.undo()),
+        )
+        add(
+            [QKeySequence.StandardKey.Redo, "Ctrl+Shift+Z"],
+            lambda: self._with_tab(lambda t: t.model.undo_stack.redo()),
+        )
 
     # --- tabs -----------------------------------------------------------------
 
@@ -175,7 +186,9 @@ class MainWindow(QMainWindow):
         self.header.set_page(tab.view.current_page)
         self.header.set_zoom(tab.view.zoom, tab.view.zoom_mode)
         self.header.set_sidebar_checked(tab.sidebar_visible)
-        self.setWindowTitle(f"{tab.doc.display_name} – PDR")
+        self.header.set_fill_checked(self.fill_mode)
+        marker = "• " if tab.model.dirty else ""
+        self.setWindowTitle(f"{marker}{tab.doc.display_name} – PDR")
         tab.view.setFocus()
 
     # --- opening and closing ---------------------------------------------------------
@@ -220,11 +233,14 @@ class MainWindow(QMainWindow):
         tab.view.current_page_changed.connect(lambda i, t=tab: self._on_page(t, i))
         tab.view.zoom_changed.connect(lambda z, m, t=tab: self._on_zoom(t, z, m))
         tab.external_link.connect(self.open_external_link)
+        tab.dirty_changed.connect(lambda _d, t=tab: self._update_tab_title(t))
+        tab.fill_done.connect(lambda: self.set_fill_mode(False))
         self.tabs.append(tab)
         self.stack.addWidget(tab)
         self.stack.setCurrentWidget(tab)
         tab.set_sidebar_visible(self.settings.show_sidebar, animate=False)
         tab.set_tokens(self.tokens)
+        tab.set_panel_visible(self.fill_mode, animate=False)
 
         entry = self.recent.get(doc.path)
         self._apply_zoom_setting(tab, entry.zoom if entry and entry.zoom else None)
@@ -309,6 +325,24 @@ class MainWindow(QMainWindow):
 
     def _apply_default_zoom(self, tab: DocumentTab) -> None:
         self._apply_zoom_setting(tab, None)
+
+    def set_fill_mode(self, on: bool) -> None:
+        """Show or hide the Fill & Sign panel (one app-wide mode, like the sidebar)."""
+        if self.current_tab() is None:
+            on = False
+        self.fill_mode = on
+        for tab in self.tabs:
+            tab.set_panel_visible(on, animate=tab is self.current_tab())
+        self.header.set_fill_checked(on)
+
+    def _update_tab_title(self, tab: DocumentTab) -> None:
+        if tab not in self.tabs:
+            return
+        index = self.tabs.index(tab)
+        marker = "• " if tab.model.dirty else ""
+        self.tab_bar.setTabText(index, marker + tab.doc.path.name)
+        if tab is self.current_tab():
+            self._refresh_chrome()
 
     def print_current(self) -> None:
         tab = self.current_tab()

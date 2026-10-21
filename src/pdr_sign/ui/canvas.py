@@ -6,12 +6,23 @@ Links, text selection (drag, double-click, context menu, copy) and search highli
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QPointF, Qt, Signal
-from PySide6.QtGui import QClipboard, QColor, QContextMenuEvent, QGuiApplication, QMouseEvent
-from PySide6.QtWidgets import QApplication, QMenu, QWidget
+from PySide6.QtGui import (
+    QClipboard,
+    QColor,
+    QContextMenuEvent,
+    QGuiApplication,
+    QKeyEvent,
+    QMouseEvent,
+)
+from PySide6.QtWidgets import QApplication, QGraphicsView, QMenu, QWidget
 
 from pdr_sign.services.document import Document, LinkInfo
 from pdr_sign.services.search import SearchHit
 from pdr_sign.services.text import word_at
+from pdr_sign.ui.fill_layer import FillLayer
+from pdr_sign.ui.fill_model import FillModel
+from pdr_sign.ui.overlay.base import OverlayGraphic
+from pdr_sign.ui.overlay.field_widgets import FieldColors, FieldLayer, FieldProxy, ToggleField
 from pdr_sign.ui.page_item import PageItem
 from pdr_sign.ui.page_view import PageView
 from pdr_sign.ui.render_scheduler import RenderScheduler
@@ -46,6 +57,15 @@ class Canvas(PageView):
         self._selecting = False
         self._search_pages: set[int] = set()
         self._current_hit: SearchHit | None = None
+        self._press_to_items = False
+        self.fill_layer: FillLayer | None = None
+        self.field_layer: FieldLayer | None = None
+        self.scene().focusItemChanged.connect(self._on_focus_item)
+
+    def attach_fill(self, model: FillModel) -> None:
+        """Show the document's form fields and Fill & Sign items."""
+        self.field_layer = FieldLayer(model, self.page_items)
+        self.fill_layer = FillLayer(model, self.page_items)
 
     # --- appearance -------------------------------------------------------------
 
@@ -54,6 +74,10 @@ class Canvas(PageView):
         PageItem.selection_color = translucent(t.accent, 80)
         PageItem.hit_color = translucent(t.search_hit, 110)
         PageItem.current_hit_color = translucent(t.search_current, 150)
+        OverlayGraphic.accent = QColor(t.accent)
+        FieldColors.fill = QColor(t.field_fill)
+        FieldColors.border = QColor(t.field_border)
+        FieldColors.accent = QColor(t.accent)
 
     # --- search highlights ---------------------------------------------------------
 
@@ -125,9 +149,26 @@ class Canvas(PageView):
 
     # --- mouse -------------------------------------------------------------------
 
+    def _interactive_item_at(self, pos: QPoint) -> bool:
+        """A form field or Fill & Sign item (anything above the page itself)."""
+        item = self.itemAt(pos)
+        return item is not None and not isinstance(item, PageItem)
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        pos = event.position().toPoint()
+        self._press_to_items = self._interactive_item_at(pos)
+        if self._press_to_items:
+            super().mousePressEvent(event)
+            return
         if event.button() == Qt.MouseButton.LeftButton:
-            self._press_pos = event.position().toPoint()
+            if self._place_with_tool(pos):
+                event.accept()
+                return
+            self.scene().clearSelection()
+            focused = self.scene().focusItem()
+            if focused is not None:
+                focused.clearFocus()  # commits a field being edited
+            self._press_pos = pos
             self._press_link = self._link_at(self._press_pos)
             self._selecting = False
             self.setFocus()
@@ -135,8 +176,23 @@ class Canvas(PageView):
             return
         super().mousePressEvent(event)
 
+    def _place_with_tool(self, pos: QPoint) -> bool:
+        layer = self.fill_layer
+        hit = self._page_point(pos)
+        if layer is None or not layer.tool or hit is None:
+            return False
+        page, local = hit
+        if not self.page_items[page].page_rect().contains(local):
+            return False
+        self.scene().clearSelection()
+        layer.place(page, local)
+        return True
+
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         pos = event.position().toPoint()
+        if self._press_to_items:
+            super().mouseMoveEvent(event)
+            return
         if self._press_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
             if not self._selecting:
                 moved = (pos - self._press_pos).manhattanLength()
@@ -152,7 +208,9 @@ class Canvas(PageView):
                     self.selection.extend(hit[0], hit[1].x(), hit[1].y())
             event.accept()
             return
-        if self._link_at(pos) is not None:
+        if self.fill_layer is not None and self.fill_layer.tool:
+            shape = Qt.CursorShape.CrossCursor
+        elif self._link_at(pos) is not None:
             shape = Qt.CursorShape.PointingHandCursor
         elif self._over_text(pos):
             shape = Qt.CursorShape.IBeamCursor
@@ -162,6 +220,10 @@ class Canvas(PageView):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._press_to_items:
+            self._press_to_items = False
+            super().mouseReleaseEvent(event)
+            return
         if event.button() != Qt.MouseButton.LeftButton or self._press_pos is None:
             super().mouseReleaseEvent(event)
             return
@@ -178,6 +240,9 @@ class Canvas(PageView):
         event.accept()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        if self._interactive_item_at(event.position().toPoint()):
+            super().mouseDoubleClickEvent(event)
+            return
         hit = self._page_point(event.position().toPoint())
         if event.button() == Qt.MouseButton.LeftButton and hit is not None:
             if self.selection.select_word(hit[0], hit[1].x(), hit[1].y()):
@@ -198,6 +263,38 @@ class Canvas(PageView):
             select = menu.addAction("Select page text")
             select.triggered.connect(lambda: self.selection.select_page(page))
         menu.exec(event.globalPos())
+
+    # --- keyboard -------------------------------------------------------------------
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        focus = self.scene().focusItem()
+        if focus is not None and not isinstance(focus, OverlayGraphic):
+            QGraphicsView.keyPressEvent(self, event)  # typing in a field: keys are its own
+            return
+        key = event.key()
+        layer = self.fill_layer
+        deleting = key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace)
+        if deleting and layer is not None and layer.delete_selected():
+            event.accept()
+            return
+        if key == Qt.Key.Key_Escape:
+            if layer is not None and layer.tool:
+                layer.set_tool("")
+            else:
+                self.scene().clearSelection()
+                self.selection.clear()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def _on_focus_item(self, new: object, _old: object, reason: Qt.FocusReason) -> None:
+        """Tabbing into a field or item off-screen scrolls it into view."""
+        if reason == Qt.FocusReason.MouseFocusReason:
+            return
+        if isinstance(new, FieldProxy | ToggleField):
+            self.reveal(new.field.page, new.field.rect)
+        elif isinstance(new, OverlayGraphic):
+            self.reveal(new.item.page, new.scene_rect_in_page())
 
     def _follow(self, link: LinkInfo) -> None:
         if link.uri:

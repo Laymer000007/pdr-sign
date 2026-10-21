@@ -41,6 +41,10 @@ class Tokens:
     # rather than accent: the accent is reserved for selection and focus.
     search_hit: str = "#FCD34D"
     search_current: str = "#F59E0B"
+    # Fillable form fields: a soft cool tint so they read as "type here", opaque enough
+    # to cover the PDF's own (possibly stale) field appearance underneath.
+    field_fill: str = "#E8EEFB"
+    field_border: str = "#9AA8D6"
 
 
 LIGHT = Tokens(
@@ -294,6 +298,24 @@ QTreeWidget::item:selected {{ background: {t.hover}; color: {t.text}; }}
 #SearchResults {{ background: {t.window}; border: none; outline: none; }}
 #SearchResults::item {{ padding: 6px 8px; border-radius: 4px; }}
 #SearchResults::item:selected {{ background: {t.hover}; color: {t.text}; }}
+
+#FillSignPill {{ padding: 6px 14px; }}
+#FillSignPill:checked {{ background: {t.text}; border-color: {t.text}; color: {t.window}; }}
+#FillSignPanel {{ background: {t.window}; }}
+#PanelTitle {{ font-size: 15px; font-weight: 600; }}
+#ToolButton {{
+    background: {t.surface}; border: 1px solid {t.border}; border-radius: {r}px;
+    padding: 6px 4px; color: {t.text};
+}}
+#ToolButton:hover {{ background: {t.hover}; }}
+#ToolButton:checked {{ background: {t.accent}; border-color: {t.accent}; color: {t.on_accent}; }}
+#Stepper {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: {r}px; }}
+#Stepper QToolButton {{ padding: 4px; border-radius: 6px; }}
+#Swatch {{ border: 2px solid {t.border}; border-radius: 12px; }}
+#Swatch:checked {{ border: 2px solid {t.accent}; }}
+#FieldList {{ background: {t.window}; border: none; outline: none; }}
+#FieldList::item {{ padding: 4px 4px; border-radius: 4px; }}
+#FieldList::item:selected {{ background: {t.hover}; color: {t.text}; }}
 
 #ZoomIndicator {{
     background: {t.surface}; color: {t.text};

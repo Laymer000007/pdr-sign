@@ -18,7 +18,12 @@ uv venv --python 3.12 .venv && uv pip install --python .venv -e ".[dev]"
 .venv/bin/pytest -m "not slow"                 # fast suite
 .venv/bin/pytest                               # everything, including slow perf tests
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest     # headless (CI uses xvfb-run)
+.venv/bin/python tools/fill_check.py some.pdf  # fill every field like Save does; copy in build/verify
 ```
+
+`samples/private/` holds the owner's real forms with personal data: never commit, copy
+into the repo, or publish them. Filled copies go to the git-ignored `build/verify/`.
+Check them in Firefox or in `tools/pdfjs-check/viewer.html` (same engine).
 
 ## Conventions
 

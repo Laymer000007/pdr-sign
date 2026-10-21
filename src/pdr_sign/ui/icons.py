@@ -37,15 +37,21 @@ def pixmap(name: str, color: str, size: int = 18, dpr: float = 1.0) -> QPixmap:
     return px
 
 
-def icon(name: str, color: str, size: int = 18, disabled: str | None = None) -> QIcon:
+def icon(
+    name: str, color: str, size: int = 18, disabled: str | None = None, on: str | None = None
+) -> QIcon:
     """A QIcon with crisp 1x and 2x renders, so HiDPI screens stay sharp.
 
     Qt's automatic disabled look just greys the pixmap, which barely changes a light
-    icon on a dark theme, so pass ``disabled`` to draw that state explicitly.
+    icon on a dark theme, so pass ``disabled`` to draw that state explicitly. ``on``
+    colours the checked state (an active tool on the accent background).
     """
     result = QIcon()
     for dpr in (1.0, 2.0):
         result.addPixmap(pixmap(name, color, size, dpr))
         if disabled is not None:
             result.addPixmap(pixmap(name, disabled, size, dpr), QIcon.Mode.Disabled)
+        if on is not None:  # checked buttons sit on the accent, so need a contrasting icon
+            result.addPixmap(pixmap(name, on, size, dpr), QIcon.Mode.Normal, QIcon.State.On)
+            result.addPixmap(pixmap(name, on, size, dpr), QIcon.Mode.Active, QIcon.State.On)
     return result
