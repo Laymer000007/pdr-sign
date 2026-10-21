@@ -49,6 +49,44 @@ def long_pdf(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return make_text_pdf(tmp_path_factory.mktemp("long") / "five-hundred.pdf", 500)
 
 
+def make_rich_pdf(path: Path) -> Path:
+    """Outline, an internal and an external link, a landscape and a rotated page."""
+    doc = pymupdf.open()
+    for n in range(1, 7):
+        w, h = (842, 595) if n == 4 else (595, 842)
+        doc.new_page(width=w, height=h).insert_text((72, 72), f"Chapter {n}", fontsize=20)
+    page = doc[0]
+    page.insert_link(
+        {
+            "kind": pymupdf.LINK_GOTO,
+            "from": pymupdf.Rect(72, 100, 172, 120),
+            "page": 2,
+            "to": pymupdf.Point(0, 200),
+        }
+    )
+    page.insert_link(
+        {
+            "kind": pymupdf.LINK_URI,
+            "from": pymupdf.Rect(72, 130, 172, 150),
+            "uri": "https://example.org",
+        }
+    )
+    doc[4].insert_link(
+        {"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(0, 0, 50, 20), "uri": "https://r.example"}
+    )
+    doc[4].set_rotation(90)
+    doc.set_toc([[1, "Part one", 1], [2, "Chapter 2", 2], [1, "Part two", 4], [2, "Five", 5]])
+    doc.set_metadata({"title": "Rich sample"})
+    doc.save(path)
+    doc.close()
+    return path
+
+
+@pytest.fixture
+def rich_pdf(tmp_path: Path) -> Path:
+    return make_rich_pdf(tmp_path / "rich.pdf")
+
+
 @pytest.fixture
 def encrypted_pdf(tmp_path: Path) -> Path:
     src = make_text_pdf(tmp_path / "plain.pdf", 1)

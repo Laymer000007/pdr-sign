@@ -11,8 +11,10 @@ from PySide6.QtWidgets import QApplication
 from pdr_sign import APP_ID, APP_NAME, APP_SHORT_NAME, __version__
 from pdr_sign.resources import APP_ICON, FONTS_DIR, SIGNATURE_FONT_FILES, UI_FONT_FILES
 from pdr_sign.services import settings as settings_service
+from pdr_sign.services.recent import RecentFiles
 from pdr_sign.ui import theme
 from pdr_sign.ui.main_window import MainWindow
+from pdr_sign.ui.single_instance import InstanceServer
 
 
 @cache
@@ -73,16 +75,29 @@ def configure(app: QApplication, user_settings: settings_service.Settings) -> Th
     return ThemeController(app, user_settings.theme)
 
 
-def build_window(controller: ThemeController) -> MainWindow:
-    window = MainWindow(controller.tokens)
+def build_window(
+    controller: ThemeController,
+    user_settings: settings_service.Settings | None = None,
+    recent: RecentFiles | None = None,
+) -> MainWindow:
+    window = MainWindow(controller.tokens, user_settings, recent)
     controller.window = window
     return window
 
 
-def run(argv: Sequence[str]) -> int:
+def run(argv: Sequence[str], files: list[str]) -> int:
     QGuiApplication.setDesktopFileName(APP_ID)
     app = QApplication(list(argv))
-    controller = configure(app, settings_service.load())
-    window = build_window(controller)
+    user_settings = settings_service.load()
+    controller = configure(app, user_settings)
+    window = build_window(controller, user_settings)
+
+    server = InstanceServer(parent=app)
+    server.files_received.connect(window.open_paths)
+    server.start()
+    app.aboutToQuit.connect(server.stop)
+
     window.show()
+    if files:
+        window.open_paths(files)
     return app.exec()

@@ -27,7 +27,15 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest     # headless (CI uses xvfb-run)
 - `src/pdr_sign/services/` must never import PySide6. `tests/test_architecture.py`
   enforces this. UI and services talk only through plain dataclasses.
 - Type hints everywhere (mypy strict). Small modules, no file over ~400 lines.
-- Use `import pymupdf`, never `fitz`.
+- Use `import pymupdf`, never `fitz`. Every PyMuPDF call goes through
+  `services.document.MUPDF_LOCK` (MuPDF isn't thread-safe; rendering runs on a worker).
+- Scene/item coordinates in the canvas are PDF points in visible (rotated) orientation.
+  `get_links()` already returns visible coordinates; `search_for()` does not (apply
+  `page.rotation_matrix`).
+- Never connect a signal that carries an int straight to `QTimer.start`; the int becomes
+  the interval. Use `lambda _: timer.start()`.
+- Tests must never open a real modal dialog (it hangs the run). Stub `ui.dialogs`
+  functions; `faulthandler_timeout` dumps stacks if one slips through.
 - Colours come only from tokens in `ui/theme.py`. The QSS is generated from them, so
   never hard-code a colour in a widget. Accent is reserved for the primary action,
   selection, focus rings and the active tool.

@@ -1,99 +1,341 @@
-"""Top-level window. Phase 0: header bar and the empty state only."""
+"""Top-level window: header, document tabs, empty state, file handling."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+import contextlib
+from pathlib import Path
+
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import (
+    QAction,
+    QCloseEvent,
+    QDesktopServices,
+    QDragEnterEvent,
+    QDragLeaveEvent,
+    QDropEvent,
+    QKeySequence,
+)
 from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
+    QFileDialog,
     QMainWindow,
+    QStackedWidget,
+    QTabBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from pdr_sign import APP_NAME, APP_SHORT_NAME
-from pdr_sign.ui import icons
-from pdr_sign.ui.theme import HEADER_HEIGHT, SPACING, Tokens
+from pdr_sign import APP_NAME
+from pdr_sign.services import recent as recent_service
+from pdr_sign.services import settings as settings_service
+from pdr_sign.services.document import Document, DocumentError, PasswordRequired, WrongPassword
+from pdr_sign.services.recent import RecentFiles
+from pdr_sign.services.settings import Settings
+from pdr_sign.ui import dialogs, icons
+from pdr_sign.ui.document_tab import DocumentTab
+from pdr_sign.ui.empty_state import EmptyState
+from pdr_sign.ui.header_bar import HeaderBar
+from pdr_sign.ui.render_scheduler import RenderScheduler
+from pdr_sign.ui.theme import Tokens
+
+SAFE_LINK_SCHEMES = {"http", "https", "mailto"}
 
 
-class EmptyState(QWidget):
-    """Centred drop zone shown when no document is open."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setObjectName("EmptyState")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-
-        zone = QWidget(self)
-        zone.setObjectName("DropZone")
-        zone.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        zone.setFixedSize(420, 240)
-
-        self.glyph = QLabel(zone)
-        self.glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title = QLabel("Open a PDF or drop it here", zone)
-        title.setObjectName("DropZoneTitle")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint = QLabel("Press Ctrl+O to browse", zone)
-        hint.setObjectName("Muted")
-        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        inner = QVBoxLayout(zone)
-        inner.setSpacing(SPACING)
-        inner.addStretch()
-        inner.addWidget(self.glyph)
-        inner.addWidget(title)
-        inner.addWidget(hint)
-        inner.addStretch()
-
-        outer = QVBoxLayout(self)
-        outer.addStretch()
-        outer.addWidget(zone, 0, Qt.AlignmentFlag.AlignHCenter)
-        outer.addStretch()
-
-    def set_tokens(self, t: Tokens) -> None:
-        self.glyph.setPixmap(icons.pixmap("file-text", t.muted, 40, self.devicePixelRatioF()))
+def zoom_setting(zoom: float, mode: str) -> str:
+    return mode or f"{zoom:.4f}"
 
 
-class HeaderBar(QWidget):
-    """48 px header. Controls arrive in Phase 1 (``ui/header_bar.py``)."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setObjectName("HeaderBar")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setFixedHeight(HEADER_HEIGHT)
-        title = QLabel(APP_SHORT_NAME, self)
-        title.setObjectName("HeaderTitle")
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(SPACING * 2, 0, SPACING * 2, 0)
-        layout.addStretch()
-        layout.addWidget(title)
-        layout.addStretch()
+def is_pdf_url(url: QUrl) -> bool:
+    return url.isLocalFile() and url.toLocalFile().lower().endswith(".pdf")
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, tokens: Tokens) -> None:
+    def __init__(
+        self,
+        tokens: Tokens,
+        settings: Settings | None = None,
+        recent: RecentFiles | None = None,
+        scheduler: RenderScheduler | None = None,
+    ) -> None:
         super().__init__()
+        self.settings = settings or Settings()
+        self.recent = recent or RecentFiles()
+        self.scheduler = scheduler or RenderScheduler()
         self.setWindowTitle(APP_NAME)
-        self.resize(1100, 780)
+        self.resize(1180, 820)
         self.setMinimumSize(640, 480)
+        self.setAcceptDrops(True)
 
         self.header = HeaderBar(self)
+        self.tab_bar = QTabBar(self)
+        self.tab_bar.setObjectName("DocumentTabs")
+        self.tab_bar.setDocumentMode(True)
+        self.tab_bar.setMovable(True)
+        self.tab_bar.setExpanding(False)
+        self.tab_bar.setElideMode(Qt.TextElideMode.ElideMiddle)
+        self.tab_bar.hide()
+        self.stack = QStackedWidget(self)
         self.empty_state = EmptyState(self)
+        self.stack.addWidget(self.empty_state)
 
         central = QWidget(self)
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self.header)
-        layout.addWidget(self.empty_state, 1)
+        column = QVBoxLayout(central)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
+        column.addWidget(self.header)
+        column.addWidget(self.tab_bar)
+        column.addWidget(self.stack, 1)
         self.setCentralWidget(central)
 
+        self.tabs: list[DocumentTab] = []
+        self._connect()
+        self._add_shortcuts()
         self.tokens = tokens
         self.set_tokens(tokens)
+        self._refresh_chrome()
+
+    # --- wiring ---------------------------------------------------------------
+
+    def _connect(self) -> None:
+        h = self.header
+        h.open_requested.connect(self.browse)
+        h.sidebar_toggled.connect(self.set_sidebar_visible)
+        h.page_requested.connect(lambda i: self._with_tab(lambda t: t.view.go_to_page(i)))
+        h.zoom_in_requested.connect(lambda: self._with_tab(lambda t: t.view.zoom_in()))
+        h.zoom_out_requested.connect(lambda: self._with_tab(lambda t: t.view.zoom_out()))
+        h.zoom_preset_requested.connect(self._zoom_preset)
+        h.about_requested.connect(lambda: dialogs.AboutDialog(self).exec())
+        self.empty_state.open_requested.connect(self.browse)
+        self.empty_state.recent_requested.connect(lambda p: self.open_paths([p]))
+        self.tab_bar.currentChanged.connect(self._on_tab_changed)
+        self.tab_bar.tabMoved.connect(self._on_tab_moved)
+
+    def _add_shortcuts(self) -> None:
+        def add(keys: list[QKeySequence | QKeySequence.StandardKey | str], slot: object) -> QAction:
+            action = QAction(self)
+            action.setShortcuts([QKeySequence(k) for k in keys])
+            action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+            action.triggered.connect(slot)
+            self.addAction(action)
+            return action
+
+        add([QKeySequence.StandardKey.Open], self.browse)
+        add([QKeySequence.StandardKey.Close], lambda: self._with_tab(self.close_tab))
+        add(["Ctrl+Tab"], lambda: self._cycle_tab(1))
+        add(["Ctrl+Shift+Tab", "Ctrl+Backtab"], lambda: self._cycle_tab(-1))
+        add(["Ctrl++", "Ctrl+="], lambda: self._with_tab(lambda t: t.view.zoom_in()))
+        add(["Ctrl+-"], lambda: self._with_tab(lambda t: t.view.zoom_out()))
+        add(["Ctrl+0"], lambda: self._with_tab(self._apply_default_zoom))
+        add(["F9"], lambda: self.set_sidebar_visible(not self.settings.show_sidebar))
+
+    # --- tabs -----------------------------------------------------------------
+
+    def current_tab(self) -> DocumentTab | None:
+        widget = self.stack.currentWidget()
+        return widget if isinstance(widget, DocumentTab) else None
+
+    def _with_tab(self, fn: object) -> None:
+        tab = self.current_tab()
+        if tab is not None and callable(fn):
+            fn(tab)
+
+    def _cycle_tab(self, step: int) -> None:
+        if len(self.tabs) > 1:
+            self.tab_bar.setCurrentIndex((self.tab_bar.currentIndex() + step) % len(self.tabs))
+
+    def _on_tab_changed(self, index: int) -> None:
+        if 0 <= index < len(self.tabs):
+            self.stack.setCurrentWidget(self.tabs[index])
+        self._refresh_chrome()
+
+    def _on_tab_moved(self, src: int, dst: int) -> None:
+        self.tabs.insert(dst, self.tabs.pop(src))
+
+    def _refresh_chrome(self) -> None:
+        tab = self.current_tab()
+        self.tab_bar.setVisible(len(self.tabs) > 1)
+        if tab is None:
+            self.stack.setCurrentWidget(self.empty_state)
+            self.empty_state.set_recent(self.recent.existing())
+            self.header.set_document(None)
+            self.setWindowTitle(APP_NAME)
+            return
+        self.header.set_document(tab.doc.page_count)
+        self.header.set_page(tab.view.current_page)
+        self.header.set_zoom(tab.view.zoom, tab.view.zoom_mode)
+        self.header.set_sidebar_checked(tab.sidebar_visible)
+        self.setWindowTitle(f"{tab.doc.display_name} – PDR")
+        tab.view.setFocus()
+
+    # --- opening and closing ---------------------------------------------------------
+
+    def browse(self) -> None:
+        start = str(Path(self.recent.entries[0].path).parent) if self.recent.entries else ""
+        paths, _ = QFileDialog.getOpenFileNames(self, "Open PDF", start, "PDF files (*.pdf)")
+        self.open_paths(paths)
+
+    def open_paths(self, paths: list[str]) -> None:
+        for raw in paths:
+            path = Path(raw).expanduser().resolve()
+            existing = next((t for t in self.tabs if t.doc.path == path), None)
+            if existing is not None:
+                self.tab_bar.setCurrentIndex(self.tabs.index(existing))
+                continue
+            doc = self._open_document(path)
+            if doc is not None:
+                self._add_tab(doc)
+        self.raise_()
+        self.activateWindow()
+
+    def _open_document(self, path: Path) -> Document | None:
+        password: str | None = None
+        retry = False
+        while True:
+            try:
+                return Document.open(path, password)
+            except PasswordRequired as exc:
+                retry = isinstance(exc, WrongPassword)
+                password = dialogs.ask_password(self, path.name, retry)
+                if password is None:
+                    return None
+            except DocumentError as exc:
+                dialogs.show_error(self, "Couldn't open file", str(exc))
+                if not path.exists():
+                    self.recent.remove(path)
+                return None
+
+    def _add_tab(self, doc: Document) -> None:
+        tab = DocumentTab(doc, self.scheduler, self)
+        tab.view.current_page_changed.connect(lambda i, t=tab: self._on_page(t, i))
+        tab.view.zoom_changed.connect(lambda z, m, t=tab: self._on_zoom(t, z, m))
+        tab.external_link.connect(self.open_external_link)
+        self.tabs.append(tab)
+        self.stack.addWidget(tab)
+        self.stack.setCurrentWidget(tab)
+        tab.set_sidebar_visible(self.settings.show_sidebar, animate=False)
+
+        entry = self.recent.get(doc.path)
+        self._apply_zoom_setting(tab, entry.zoom if entry and entry.zoom else None)
+        if entry and 0 < entry.page < doc.page_count:
+            tab.view.go_to_page(entry.page)
+        self.recent.touch(doc.path)
+        # A missing thumbnail only affects the recent grid.
+        with contextlib.suppress(OSError, DocumentError, RuntimeError):
+            recent_service.save_thumbnail(doc.path, doc.thumbnail_png())
+
+        self.tab_bar.blockSignals(True)
+        index = self.tab_bar.addTab(doc.path.name)
+        self.tab_bar.setTabToolTip(index, str(doc.path))
+        self.tab_bar.setTabButton(index, QTabBar.ButtonPosition.RightSide, self._close_button(tab))
+        self.tab_bar.setCurrentIndex(index)
+        self.tab_bar.blockSignals(False)
+        self._refresh_chrome()
+
+    def _close_button(self, tab: DocumentTab) -> QToolButton:
+        button = QToolButton()
+        button.setObjectName("TabClose")
+        button.setAutoRaise(True)
+        button.setAccessibleName(f"Close {tab.doc.path.name}")
+        button.setToolTip("Close (Ctrl+W)")
+        button.setIcon(icons.icon("x", self.tokens.muted, 14))
+        button.clicked.connect(lambda: self.close_tab(tab))
+        return button
+
+    def close_tab(self, tab: DocumentTab) -> None:
+        self._remember(tab)
+        index = self.tabs.index(tab)
+        self.tabs.pop(index)
+        self.tab_bar.blockSignals(True)
+        self.tab_bar.removeTab(index)
+        self.tab_bar.blockSignals(False)
+        self.stack.removeWidget(tab)
+        tab.close_document()
+        tab.deleteLater()
+        if self.tabs:
+            self.stack.setCurrentWidget(self.tabs[self.tab_bar.currentIndex()])
+        self._refresh_chrome()
+
+    def _remember(self, tab: DocumentTab) -> None:
+        zoom = zoom_setting(tab.view.zoom, tab.view.zoom_mode)
+        self.recent.touch(tab.doc.path, page=tab.view.current_page, zoom=zoom)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        for tab in list(self.tabs):
+            self.close_tab(tab)
+        settings_service.save(self.settings)
+        super().closeEvent(event)
+
+    # --- view state --------------------------------------------------------------
+
+    def _on_page(self, tab: DocumentTab, index: int) -> None:
+        if tab is self.current_tab():
+            self.header.set_page(index)
+
+    def _on_zoom(self, tab: DocumentTab, zoom: float, mode: str) -> None:
+        if tab is self.current_tab():
+            self.header.set_zoom(zoom, mode)
+
+    def _zoom_preset(self, value: object) -> None:
+        tab = self.current_tab()
+        if tab is None:
+            return
+        if isinstance(value, str):
+            tab.view.apply_zoom_mode(value)
+        elif isinstance(value, float):
+            tab.view.set_zoom(value)
+
+    def _apply_zoom_setting(self, tab: DocumentTab, value: str | None) -> None:
+        value = value or self.settings.default_zoom
+        if value in ("fit-width", "fit-page"):
+            tab.view.apply_zoom_mode(value)
+            return
+        try:
+            zoom = float(value)
+        except ValueError:
+            zoom = 1.0
+        tab.view.set_zoom(zoom if value != "100" else 1.0, osd=False)
+
+    def _apply_default_zoom(self, tab: DocumentTab) -> None:
+        self._apply_zoom_setting(tab, None)
+
+    def set_sidebar_visible(self, visible: bool) -> None:
+        self.settings.show_sidebar = visible
+        for tab in self.tabs:
+            tab.set_sidebar_visible(visible, animate=tab is self.current_tab())
+        self.header.set_sidebar_checked(visible)
+
+    def open_external_link(self, uri: str) -> None:
+        url = QUrl(uri)
+        if url.scheme().lower() not in SAFE_LINK_SCHEMES:
+            message = f"PDR only opens web and email links.\n\n{uri}"
+            dialogs.show_error(self, "Link not opened", message)
+            return
+        if self.settings.open_links_without_asking or dialogs.confirm_external_link(self, uri):
+            QDesktopServices.openUrl(url)
+
+    # --- theme / drag and drop -----------------------------------------------------
 
     def set_tokens(self, t: Tokens) -> None:
         """Re-apply theme-dependent bits that QSS can't reach (icon colours)."""
         self.tokens = t
+        self.header.set_tokens(t)
         self.empty_state.set_tokens(t)
+        for i in range(self.tab_bar.count()):
+            button = self.tab_bar.tabButton(i, QTabBar.ButtonPosition.RightSide)
+            if isinstance(button, QToolButton):
+                button.setIcon(icons.icon("x", t.muted, 14))
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if any(is_pdf_url(u) for u in event.mimeData().urls()):
+            event.acceptProposedAction()
+            self.empty_state.set_drag_active(True)
+
+    def dragLeaveEvent(self, event: QDragLeaveEvent) -> None:
+        self.empty_state.set_drag_active(False)
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        self.empty_state.set_drag_active(False)
+        paths = [u.toLocalFile() for u in event.mimeData().urls() if is_pdf_url(u)]
+        if paths:
+            event.acceptProposedAction()
+            self.open_paths(paths)

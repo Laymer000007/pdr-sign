@@ -32,3 +32,48 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   use `stroke="currentColor"`, which `icons.py` replaces with the theme colour before
   rendering through QtSvg.
 - **Fonts:** vendored as the variable TTFs from the google/fonts repository.
+
+## Phase 1
+
+- **App identity:** `OWNER = "Laymer000007"`, so the app ID is `io.github.Laymer000007.PdrSign`.
+  `SOURCE_URL` is a literal (`https://github.com/Laymer000007/pdr-sign`).
+- **One render thread plus a global `MUPDF_LOCK`.** MuPDF isn't thread-safe, and
+  PyMuPDF releases the GIL while rendering (measured), so a background render
+  doesn't block the UI. The `QThreadPool` has one thread, and every PyMuPDF call
+  takes the lock.
+- **Render scheduler with replaceable "wants".** Each consumer (a page view, a thumbnail
+  list) replaces its whole request list on every scroll or zoom, so stale tiles for
+  pages you've scrolled past are dropped, never rendered. Visible tiles come first,
+  then ±2 pages of prefetch, then thumbnails.
+- **Tiles are RGB, not RGBA.** Pages are opaque, and RGB saves a quarter of the memory.
+  `render_tile` returns packed RGB888. The cache budget (300 MB) counts pixmaps at
+  32 bpp, which is how Qt stores them.
+- **Tile size 1024 device px.** Pages at normal zoom are 1–4 tiles. 400 % on HiDPI
+  stays bounded.
+- **Scene units are PDF points.** The view transform is the zoom, so later overlay
+  items (Fill & Sign) live directly in PDF coordinates. The gap between pages is a
+  fixed 16 screen px, recomputed in points on each zoom.
+- **Zoom anchoring** stores the point under the cursor as `(page, x, y)` relative to
+  its page and restores it after re-layout, because scene y shifts as the gap changes.
+- **Fit width uses the median page width**, so one landscape page doesn't shrink
+  every portrait page. Fit modes anchor at the top and centre horizontally.
+- **Ctrl+0 resets to the default zoom** from Settings (`fit-width` unless changed).
+- **Coordinates:** `get_links()` returns rects and targets in visible (rotated)
+  coordinates. `search_for()` returns unrotated ones and needs `page.rotation_matrix`
+  (Phase 2). Both are covered by tests.
+- **Single instance over a Unix socket** at `$XDG_RUNTIME_DIR/<app-id>-<uid>.sock`
+  (mode 0600). QtNetwork (QLocalServer) and QtDBus aren't on the allowed module list,
+  so the server is Python `socket` with a `QSocketNotifier`. The client is Qt-free
+  (`services/instance.py`), so a second launch hands over its files in about 60 ms
+  without loading Qt.
+- **External links:** only `http`, `https` and `mailto` open, after confirmation
+  unless "Open links without asking" is on. Any other scheme (`file:`, `javascript:`,
+  `launch` actions) is refused.
+- **Tabs show the file name** (the PDF title can repeat or be meaningless), with the
+  full path as a tooltip. The window title uses the PDF title when there is one.
+- **Sidebar visibility** is one app-wide preference (`Settings.show_sidebar`), toggled
+  with F9 or the header button.
+- **The Settings dialog is deferred** to a later phase. The settings file already
+  holds theme, default zoom and the links preference.
+- **CI actions bumped** to `actions/checkout@v7` and `actions/setup-python@v7`, because
+  Node 20 is deprecated on runners.

@@ -94,27 +94,40 @@ def contrast_ratio(fg: str, bg: str) -> float:
 # --- detection ------------------------------------------------------------------
 
 
-def gnome_color_scheme() -> Scheme | None:
-    """Read ``org.gnome.desktop.interface color-scheme``. None when unavailable."""
+def gsettings_get(schema: str, key: str) -> str | None:
+    """Read one GNOME setting, unquoted. None when gsettings is unavailable."""
     exe = shutil.which("gsettings")
     if exe is None:
         return None
     try:
         out = subprocess.run(
-            [exe, "get", "org.gnome.desktop.interface", "color-scheme"],
-            capture_output=True,
-            text=True,
-            timeout=1,
-            check=True,
+            [exe, "get", schema, key], capture_output=True, text=True, timeout=1, check=True
         ).stdout
     except (OSError, subprocess.SubprocessError):
         return None
-    value = out.strip().strip("'\"")
+    return out.strip().strip("'\"")
+
+
+def gnome_color_scheme() -> Scheme | None:
+    """Read ``org.gnome.desktop.interface color-scheme``. None when unavailable."""
+    value = gsettings_get("org.gnome.desktop.interface", "color-scheme")
     if value == "prefer-dark":
         return "dark"
     if value in ("prefer-light", "default"):
         return "light"
     return None
+
+
+_animations: bool | None = None
+
+
+def animations_enabled() -> bool:
+    """False when the desktop asks for reduced motion. Read once, then cached."""
+    global _animations
+    if _animations is None:
+        value = gsettings_get("org.gnome.desktop.interface", "enable-animations")
+        _animations = value != "false"
+    return _animations
 
 
 def qt_color_scheme() -> Scheme:
@@ -198,8 +211,9 @@ QToolButton:focus, QPushButton:focus {{ border: 1px solid {t.accent}; }}
 QToolButton:checked {{ background: {t.pressed}; }}
 
 QPushButton[primary="true"], QToolButton[primary="true"] {{
-    background: {t.accent}; color: {t.on_accent};
-    border-radius: 16px; padding: 6px 14px; font-weight: 600;
+    background: {t.accent}; color: {t.on_accent}; border: 1px solid {t.accent};
+    /* Qt drops a radius larger than half the height, so keep min-height in step. */
+    border-radius: 14px; min-height: 18px; padding: 6px 16px; font-weight: 600;
 }}
 QPushButton[primary="true"]:focus, QToolButton[primary="true"]:focus {{
     border: 2px solid {t.text};
@@ -229,6 +243,40 @@ QMenu::separator {{ height: 1px; background: {t.border}; margin: 4px 8px; }}
 #DropZone[dragActive="true"] {{ border-color: {t.accent}; }}
 #DropZoneTitle {{ font-size: 17px; font-weight: 600; }}
 #Muted {{ color: {t.muted}; }}
+
+QToolButton::menu-indicator {{ image: none; width: 0; }}
+#PageField {{ padding: 4px 4px; }}
+
+#Sidebar {{ background: {t.window}; }}
+#Divider {{ background: {t.border}; }}
+QTabWidget::pane {{ border: none; }}
+QTabBar {{ background: {t.window}; }}
+QTabBar::tab {{
+    background: transparent; color: {t.muted};
+    padding: 8px 12px; border: none; border-bottom: 2px solid transparent;
+}}
+QTabBar::tab:selected {{ color: {t.text}; border-bottom: 2px solid {t.accent}; }}
+QTabBar::tab:hover {{ color: {t.text}; }}
+#DocumentTabs {{ border-bottom: 1px solid {t.border}; }}
+#DocumentTabs::tab {{ max-width: 220px; padding: 6px 8px 6px 12px; }}
+#TabClose {{ padding: 2px; border-radius: 4px; }}
+
+#Thumbnails, QTreeWidget {{ background: {t.window}; border: none; outline: none; }}
+#Thumbnails::item {{
+    color: {t.muted}; border: 2px solid transparent; border-radius: {r}px; padding: 4px;
+}}
+#Thumbnails::item:selected {{ color: {t.text}; border-color: {t.accent}; background: transparent; }}
+#Thumbnails::item:hover {{ background: {t.hover}; }}
+QTreeWidget::item {{ padding: 4px 2px; border-radius: 4px; }}
+QTreeWidget::item:selected {{ background: {t.hover}; color: {t.text}; }}
+
+#ZoomIndicator {{
+    background: {t.surface}; color: {t.text};
+    border: 1px solid {t.border}; border-radius: 14px; padding: 4px 12px;
+}}
+#EmptyStateBody {{ background: {t.canvas}; }}
+#SectionTitle {{ color: {t.muted}; font-weight: 600; }}
+#RecentCard {{ padding: 8px; color: {t.text}; }}
 
 QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
 QScrollBar:horizontal {{ background: transparent; height: 10px; margin: 2px; }}

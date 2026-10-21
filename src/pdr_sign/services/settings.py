@@ -26,6 +26,7 @@ class Settings:
     # None means the default location from ``data_dir() / "signatures"``.
     signature_dir: str | None = None
     open_links_without_asking: bool = False
+    show_sidebar: bool = False
     # Reserved for a possible future paid build. No licensing logic exists.
     license_key: str | None = None
 
