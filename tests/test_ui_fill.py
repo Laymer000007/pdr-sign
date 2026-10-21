@@ -7,7 +7,8 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QComboBox, QLineEdit, QListWidget, QPlainTextEdit
 from pytestqt.qtbot import QtBot
@@ -376,3 +377,136 @@ def test_double_click_edits_existing_text(qtbot: QtBot, window: MainWindow, text
     QTest.keyClick(tab.view.viewport(), Qt.Key.Key_Escape)
     (item,) = tab.model.items.values()
     assert item.text == "Draft two"
+
+
+# --- line tool ------------------------------------------------------------------------
+
+
+def line_points(tab: DocumentTab) -> list[tuple[float, float, float, float]]:
+    return [i.rect for i in tab.model.items.values() if i.kind == "line"]
+
+
+def drag(tab: DocumentTab, start: QPointF, end: QPointF, shift: bool = False) -> None:
+    """Press, move in steps, release, with Shift held throughout if asked.
+
+    QTest.mouseMove can't carry keyboard modifiers, so the moves are real events.
+    """
+    vp = tab.view.viewport()
+    mod = Qt.KeyboardModifier.ShiftModifier if shift else Qt.KeyboardModifier.NoModifier
+    a, b = view_pos(tab, 0, start), view_pos(tab, 0, end)
+    QTest.mousePress(vp, Qt.MouseButton.LeftButton, mod, a)
+    for k in range(1, 6):
+        pos = QPointF(a + (b - a) * k / 5)
+        move = QMouseEvent(
+            QEvent.Type.MouseMove,
+            pos,
+            QPointF(vp.mapToGlobal(pos)),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            mod,
+        )
+        QApplication.sendEvent(vp, move)
+    QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, mod, b)
+
+
+def test_line_tool_click_places_default_line(window: MainWindow, text_pdf: Path) -> None:
+    tab = open_tab(window, text_pdf)
+    window.set_fill_mode(True)
+    button = tab.panel._buttons["line"]
+    assert button.toolTip() == "Line"
+    button.click()
+    vp = tab.view.viewport()
+    QTest.mouseClick(vp, Qt.MouseButton.LeftButton, pos=view_pos(tab, 0, QPointF(100, 200)))
+    QTest.mouseClick(vp, Qt.MouseButton.LeftButton, pos=view_pos(tab, 0, QPointF(100, 260)))
+    lines = line_points(tab)
+    assert len(lines) == 2  # the tool stays active
+    x1, y1, x2, y2 = lines[0]
+    assert (x1, y1) == pytest.approx((100, 200), abs=1)
+    assert (x2 - x1, y2 - y1) == pytest.approx((stamps.LINE_LENGTH, 0), abs=0.01)
+
+
+def test_line_tool_drag_sets_length_and_shift_allows_angle(
+    window: MainWindow, text_pdf: Path
+) -> None:
+    from pdr_sign.ui.overlay.line_item import angle_degrees
+
+    tab = open_tab(window, text_pdf)
+    layer = tab.view.fill_layer
+    assert layer is not None
+    layer.set_tool("line")
+    drag(tab, QPointF(100, 300), QPointF(250, 340))  # no Shift: stays horizontal
+    drag(tab, QPointF(100, 400), QPointF(200, 500), shift=True)
+    flat, angled = (tab.model.items[k] for k in tab.model.items)
+    assert flat.rect[2] - flat.rect[0] == pytest.approx(150, abs=1.5)
+    assert flat.rect[1] == flat.rect[3]
+    assert angle_degrees(angled) == pytest.approx(45, abs=1.5)
+
+
+def test_line_handles_move_delete_undo(window: MainWindow, text_pdf: Path) -> None:
+    from pdr_sign.ui.overlay.line_item import LineGraphic
+
+    tab = open_tab(window, text_pdf)
+    layer = tab.view.fill_layer
+    assert layer is not None
+    layer.set_tool("line")
+    QTest.mouseClick(
+        tab.view.viewport(), Qt.MouseButton.LeftButton, pos=view_pos(tab, 0, QPointF(100, 200))
+    )
+    layer.set_tool("")
+    (item,) = tab.model.items.values()
+    graphic = layer.graphics[item.id]
+    assert isinstance(graphic, LineGraphic) and graphic.isSelected()
+
+    # Drag the end handle out to 120 pt; without Shift it stays level.
+    drag(tab, QPointF(140, 200), QPointF(220, 230))
+    stretched = tab.model.items[item.id]
+    assert stretched.rect == pytest.approx((100, 200, 220, 200), abs=1.5)
+
+    # Drag the middle to move the whole line.
+    drag(tab, QPointF(160, 200), QPointF(160, 260))
+    moved = tab.model.items[item.id]
+    assert moved.rect == pytest.approx((100, 260, 220, 260), abs=1.5)
+
+    graphic.setFocus()
+    QTest.keyClick(tab.view.viewport(), Qt.Key.Key_Delete)
+    assert tab.model.items == {}
+    for expected in (moved.rect, stretched.rect, item.rect):
+        trigger_shortcut(window, "Ctrl+Z")
+        assert tab.model.items[item.id].rect == pytest.approx(expected, abs=1.5)
+        shown = layer.graphics[item.id]  # undoing the delete makes a fresh graphic
+        assert shown.scene_rect_in_page() == pytest.approx(expected, abs=1.5)
+
+
+def test_line_takes_ink_and_size_from_panel(window: MainWindow, text_pdf: Path) -> None:
+    tab = open_tab(window, text_pdf)
+    window.set_fill_mode(True)
+    tab.panel.colors[stamps.TEXT_COLORS["blue"]].click()
+    tab.panel.size_box.set_value(24, emit=True)
+    layer = tab.view.fill_layer
+    assert layer is not None
+    layer.set_tool("line")
+    QTest.mouseClick(
+        tab.view.viewport(), Qt.MouseButton.LeftButton, pos=view_pos(tab, 0, QPointF(100, 200))
+    )
+    (item,) = tab.model.items.values()
+    assert item.color == stamps.TEXT_COLORS["blue"] and item.font_size == 24
+    tab.panel.size_box.set_value(8, emit=True)  # restyles the selected line
+    assert tab.model.items[item.id].font_size == 8
+
+
+def test_line_saves_and_reopens_from_the_ui(
+    window: MainWindow, text_pdf: Path, tmp_path: Path
+) -> None:
+    from pdr_sign.services.document import Document
+
+    tab = open_tab(window, text_pdf)
+    layer = tab.view.fill_layer
+    assert layer is not None
+    layer.set_tool("line")
+    drag(tab, QPointF(100, 300), QPointF(200, 360), shift=True)
+    (item,) = tab.model.items.values()
+    stamps.write_overlays(tab.doc, list(tab.model.items.values()))
+    with tab.doc.locked() as pdf:
+        pdf.save(tmp_path / "out.pdf")
+    (back,) = stamps.read_overlays(Document.open(tmp_path / "out.pdf"))
+    assert back.rect == pytest.approx(item.rect, abs=0.01)

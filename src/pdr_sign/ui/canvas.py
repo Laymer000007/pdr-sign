@@ -161,7 +161,7 @@ class Canvas(PageView):
             super().mousePressEvent(event)
             return
         if event.button() == Qt.MouseButton.LeftButton:
-            if self._place_with_tool(pos):
+            if self._start_line(pos) or self._place_with_tool(pos):
                 event.accept()
                 return
             self.scene().clearSelection()
@@ -175,6 +175,18 @@ class Canvas(PageView):
             event.accept()
             return
         super().mousePressEvent(event)
+
+    def _start_line(self, pos: QPoint) -> bool:
+        layer = self.fill_layer
+        hit = self._page_point(pos)
+        if layer is None or layer.tool != "line" or hit is None:
+            return False
+        page, local = hit
+        if not self.page_items[page].page_rect().contains(local):
+            return False
+        self.scene().clearSelection()
+        layer.begin_line(page, local)
+        return True
 
     def _place_with_tool(self, pos: QPoint) -> bool:
         layer = self.fill_layer
@@ -192,6 +204,15 @@ class Canvas(PageView):
         pos = event.position().toPoint()
         if self._press_to_items:
             super().mouseMoveEvent(event)
+            return
+        draft = self.fill_layer.draft if self.fill_layer is not None else None
+        if draft is not None:
+            parent = draft.parentItem()
+            if parent is not None:
+                local = parent.mapFromScene(self.mapToScene(pos))
+                shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+                self.fill_layer.drag_line(local, any_angle=shift)  # type: ignore[union-attr]
+            event.accept()
             return
         if self._press_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
             if not self._selecting:
@@ -223,6 +244,10 @@ class Canvas(PageView):
         if self._press_to_items:
             self._press_to_items = False
             super().mouseReleaseEvent(event)
+            return
+        if self.fill_layer is not None and self.fill_layer.draft is not None:
+            self.fill_layer.end_line()
+            event.accept()
             return
         if event.button() != Qt.MouseButton.LeftButton or self._press_pos is None:
             super().mouseReleaseEvent(event)

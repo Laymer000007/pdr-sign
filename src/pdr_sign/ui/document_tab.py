@@ -11,6 +11,7 @@ from pdr_sign.services.search import SearchHit
 from pdr_sign.ui.canvas import Canvas
 from pdr_sign.ui.fill_model import FillModel
 from pdr_sign.ui.fill_sign_panel import FillSignPanel
+from pdr_sign.ui.overlay.line_item import LineGraphic
 from pdr_sign.ui.overlay.text_item import TextGraphic
 from pdr_sign.ui.render_scheduler import RenderScheduler
 from pdr_sign.ui.search_bar import SearchBar
@@ -141,7 +142,7 @@ class DocumentTab(QWidget):
         if layer is None:
             return
         for graphic in layer.selected():
-            if isinstance(graphic, TextGraphic):
+            if isinstance(graphic, TextGraphic | LineGraphic):
                 self.panel.set_style(graphic.item.font_size, graphic.item.color)
                 return
 

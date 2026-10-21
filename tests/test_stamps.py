@@ -84,3 +84,65 @@ def test_clamp_font_size() -> None:
     assert stamps.clamp_font_size(4) == 8
     assert stamps.clamp_font_size(40) == 24
     assert stamps.clamp_font_size(12) == 12
+
+
+# --- lines ----------------------------------------------------------------------
+
+
+def test_line_width_follows_text_size() -> None:
+    assert stamps.line_width(8) == pytest.approx(0.75)
+    assert stamps.line_width(24) == pytest.approx(3.0)
+    assert stamps.line_width(4) == pytest.approx(0.75)  # clamped
+    assert stamps.line_width(8) < stamps.line_width(12) < stamps.line_width(24)
+
+
+@pytest.mark.parametrize("rotation", [0, 90, 180, 270])
+def test_line_round_trip(tmp_path: Path, rotation: int) -> None:
+    src = pymupdf.open()
+    src.new_page(width=595, height=842).set_rotation(rotation)
+    src.save(tmp_path / "blank.pdf")
+    doc = Document.open(tmp_path / "blank.pdf")
+    line = OverlayItem("line", 0, (100, 120, 220, 180), font_size=20, color="#1D4ED8")
+    assert stamps.write_overlays(doc, [line]) == {0}
+    again = save_and_reopen(doc, tmp_path / "line.pdf")
+    (back,) = stamps.read_overlays(again)
+    assert back.kind == "line"
+    assert back.rect == pytest.approx(line.rect, abs=0.01)  # end points, in order
+    assert (back.font_size, back.color) == (20, "#1D4ED8")
+    with again.locked() as pdf:
+        page = pdf[0]  # annotations need their page kept alive
+        (annot,) = page.annots()
+        assert annot.type[1] == "Line"
+        assert annot.border["width"] == pytest.approx(stamps.line_width(20))
+    again.close()
+
+
+def test_line_reopens_editable_and_strips(text_pdf: Path, tmp_path: Path) -> None:
+    doc = Document.open(text_pdf)
+    stamps.write_overlays(doc, [OverlayItem("line", 1, (50, 60, 90, 60))])
+    again = save_and_reopen(doc, tmp_path / "l.pdf")
+    assert [i.kind for i in stamps.read_overlays(again, remove=True)] == ["line"]
+    with again.locked() as pdf:
+        assert list(pdf[1].annots()) == []
+    again.close()
+
+
+def test_line_flattens_into_page_content(tmp_path: Path) -> None:
+    src = pymupdf.open()
+    src.new_page(width=595, height=842).set_rotation(90)
+    src.save(tmp_path / "blank.pdf")
+    doc = Document.open(tmp_path / "blank.pdf")
+    stamps.write_overlays(doc, [OverlayItem("line", 0, (100, 100, 300, 100), font_size=24)])
+    with doc.locked() as pdf:
+        pdf.bake()  # what "Flatten" will do in Phase 5
+        page = pdf[0]
+        assert list(page.annots()) == []
+        (drawing,) = [d for d in page.get_drawings() if d["items"][0][0] == "l"]
+        p1, p2 = (pymupdf.Point(p) * page.rotation_matrix for p in drawing["items"][0][1:3])
+        assert drawing["width"] == pytest.approx(3.0)
+        pix = page.get_pixmap(dpi=72)
+    # Still drawn where it was placed, in the visible orientation.
+    assert sorted([p1.x, p2.x]) == pytest.approx([100, 300], abs=1)
+    assert p1.y == pytest.approx(100, abs=1) and p2.y == pytest.approx(100, abs=1)
+    assert pix.pixel(200, 100) != (255, 255, 255)
+    doc.close()

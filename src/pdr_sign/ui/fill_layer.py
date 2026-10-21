@@ -10,13 +10,14 @@ from pdr_sign.services.stamps import DEFAULT_FONT_SIZE, MARK_KINDS, TEXT_COLORS,
 from pdr_sign.ui.fill_model import FillModel
 from pdr_sign.ui.overlay.base import OverlayGraphic
 from pdr_sign.ui.overlay.check_item import MARK_SIZE, MarkGraphic
+from pdr_sign.ui.overlay.line_item import MIN_LENGTH, LineGraphic, default_end
 from pdr_sign.ui.overlay.text_item import TextGraphic
 
 if TYPE_CHECKING:
     from pdr_sign.ui.page_item import PageItem
 
-TOOLS = ("text", "check", "cross", "dot", "date")
-STICKY_TOOLS = MARK_KINDS  # stay active so you can tick several boxes in a row
+TOOLS = ("text", "check", "cross", "dot", "line", "date")
+STICKY_TOOLS = (*MARK_KINDS, "line")  # stay active for repeated use
 
 
 def today_text() -> str:
@@ -35,6 +36,7 @@ class FillLayer(QObject):
         self.text_size = DEFAULT_FONT_SIZE
         self.text_color = TEXT_COLORS["black"]
         self.graphics: dict[str, OverlayGraphic] = {}
+        self.draft: LineGraphic | None = None  # a line being drawn by dragging
         model.item_added.connect(self._on_added)
         model.item_removed.connect(self._on_removed)
         model.item_changed.connect(self._on_changed)
@@ -96,6 +98,44 @@ class FillLayer(QObject):
         graphic.setSelected(True)
         return graphic
 
+    # --- drawing lines ---------------------------------------------------------------
+
+    def begin_line(self, page: int, point: QPointF) -> LineGraphic:
+        """Start a line at ``point``; ``drag_line`` stretches it, ``end_line`` commits."""
+        item = OverlayItem(
+            "line",
+            page,
+            (point.x(), point.y(), point.x(), point.y()),
+            font_size=self.text_size,
+            color=self.text_color,
+        )
+        self.draft = LineGraphic(item, self.model, self.pages[page], pending=True)
+        self.graphics[item.id] = self.draft
+        return self.draft
+
+    def drag_line(self, point: QPointF, any_angle: bool) -> None:
+        if self.draft is None:
+            return
+        start, _ = self.draft.endpoints()
+        self.draft.set_endpoints(start, self.draft.constrain(start, point, any_angle))
+
+    def end_line(self) -> LineGraphic | None:
+        draft, self.draft = self.draft, None
+        if draft is None:
+            return None
+        start, end = draft.endpoints()
+        if draft.length() < MIN_LENGTH:  # a click, not a drag
+            end = default_end(start, self.pages[draft.item.page].info.width)
+            draft.set_endpoints(start, end)
+        draft.pending = False
+        draft.item = draft.item.moved_to(draft.scene_rect_in_page())
+        self.model.add_item(draft.item)
+        scene = draft.scene()
+        if scene is not None:
+            scene.clearSelection()
+        draft.setSelected(True)
+        return draft
+
     # --- selection ------------------------------------------------------------------
 
     def selected(self) -> list[OverlayGraphic]:
@@ -117,6 +157,8 @@ class FillLayer(QObject):
         for graphic in self.selected():
             if isinstance(graphic, TextGraphic):
                 graphic.set_style(font_size, color)
+            elif isinstance(graphic, LineGraphic):
+                graphic.restyle(font_size, color)
 
     # --- model → graphics ---------------------------------------------------------------
 
@@ -125,7 +167,9 @@ class FillLayer(QObject):
             return  # a pending text box that just got its first text
         page = self.pages[item.page]
         graphic: OverlayGraphic
-        if item.is_mark:
+        if item.kind == "line":
+            graphic = LineGraphic(item, self.model, page)
+        elif item.is_mark:
             graphic = MarkGraphic(item, self.model, page)
         else:
             graphic = TextGraphic(item, self.model, page)

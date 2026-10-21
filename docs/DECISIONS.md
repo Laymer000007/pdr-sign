@@ -154,3 +154,16 @@ Choices made where the build spec was silent or needed interpretation. Newest la
 - **The text-size control is a −/+ stepper.** QSpinBox's arrows don't survive the
   app stylesheet under Fusion.
 - **A "• " marker** on the tab and window title shows unsaved Fill & Sign changes.
+
+## Line tool (between Phase 3 and 4)
+
+- **A line item's `rect` holds its two end points as drawn**, not a normalised box,
+  because the end-point handles need to know which end is which.
+- **Saved as a PDF Line annotation** (`/PDR 1`, `/PDRKind /line`, plus `/PDRSize`, so
+  the size setting reopens exactly). Stroke width is 0.75 pt at size 8, rising
+  linearly to 3 pt at size 24. Verified in pdf.js, on rotated pages, and after
+  `bake()` (flatten).
+- **Horizontal unless Shift is held**, both when drawing and when dragging an end
+  point. A click (a drag under 3 pt) gives a 40 pt line, to the right or to the left
+  when there's no room. Clicks only select a line within 8 screen px of its stroke,
+  not anywhere in its bounding box.

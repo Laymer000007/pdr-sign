@@ -1,9 +1,9 @@
 """Fill & Sign overlay items and how they are written into the PDF. Qt-free.
 
 Text, date, initials and mark items (check, cross, dot) become FreeText annotations
-tagged ``/PDR 1`` (and ``/PDRKind /<kind>``), so PDR can reopen them as editable
-items while every other viewer just shows them. Signatures are stamped as images in
-Phase 4.
+and lines become Line annotations, all tagged ``/PDR 1`` (and ``/PDRKind /<kind>``),
+so PDR can reopen them as editable items while every other viewer just shows them.
+Signatures are stamped as images in Phase 4.
 """
 
 from __future__ import annotations
@@ -21,9 +21,10 @@ from pdr_sign.services.text import Rect
 # PyMuPDF defines its constants at import time; its type stubs don't list them.
 _C: Any = pymupdf
 
-OverlayKind = Literal["text", "date", "initials", "check", "cross", "dot", "signature"]
+OverlayKind = Literal["text", "date", "initials", "check", "cross", "dot", "line", "signature"]
 MARK_KINDS: tuple[OverlayKind, ...] = ("check", "cross", "dot")
 TEXT_KINDS: tuple[OverlayKind, ...] = ("text", "date", "initials")
+LINE_LENGTH = 40.0  # points, for a line placed with a plain click
 
 # ZapfDingbats glyphs, available in every PDF viewer without embedding a font.
 MARK_GLYPHS = {"check": "4", "cross": "8", "dot": "l"}
@@ -48,12 +49,21 @@ class OverlayItem:
     id: str = field(default_factory=new_id)
     image: bytes | None = None  # signature PNG (Phase 4)
 
+    # For a line, ``rect`` holds its two end points (x1, y1, x2, y2) as drawn, not a
+    # normalised box: the direction matters for the end-point handles.
+
     def moved_to(self, rect: Rect) -> OverlayItem:
         return replace(self, rect=rect)
 
     @property
     def is_mark(self) -> bool:
         return self.kind in MARK_KINDS
+
+
+def line_width(size: float) -> float:
+    """Stroke width for a line drawn at text size ``size``: 0.75 pt at 8, 3 pt at 24."""
+    size = clamp_font_size(size)
+    return round(0.75 + (size - MIN_FONT_SIZE) * 2.25 / (MAX_FONT_SIZE - MIN_FONT_SIZE), 3)
 
 
 def clamp_font_size(size: float) -> float:
@@ -80,6 +90,10 @@ def write_overlays(doc: Document, items: list[OverlayItem]) -> set[int]:
             if item.kind == "signature":
                 continue  # Phase 4: images, not annotations
             page = pdf[item.page]
+            if item.kind == "line":
+                _write_line(pdf, page, item)
+                pages.add(item.page)
+                continue
             rect = pymupdf.Rect(item.rect) * page.derotation_matrix
             if item.is_mark:
                 text, font = MARK_GLYPHS[item.kind], "ZaDb"
@@ -105,6 +119,37 @@ def write_overlays(doc: Document, items: list[OverlayItem]) -> set[int]:
     return pages
 
 
+def _write_line(pdf: pymupdf.Document, page: pymupdf.Page, item: OverlayItem) -> None:
+    x1, y1, x2, y2 = item.rect
+    m = page.derotation_matrix
+    annot = page.add_line_annot(pymupdf.Point(x1, y1) * m, pymupdf.Point(x2, y2) * m)
+    annot.set_border(width=line_width(item.font_size))
+    annot.set_colors(stroke=_rgb(item.color))
+    annot.set_info(title="PDR")
+    annot.update()
+    pdf.xref_set_key(annot.xref, "PDR", "1")
+    pdf.xref_set_key(annot.xref, "PDRKind", "/line")
+    pdf.xref_set_key(annot.xref, "PDRSize", f"{item.font_size:g}")
+
+
+def _read_line(
+    pdf: pymupdf.Document, page: pymupdf.Page, annot: pymupdf.Annot, index: int
+) -> OverlayItem | None:
+    vertices = annot.vertices or []
+    if len(vertices) < 2:
+        return None
+    (x1, y1), (x2, y2) = (pymupdf.Point(v) * page.rotation_matrix for v in vertices[:2])
+    size_kind, size = pdf.xref_get_key(annot.xref, "PDRSize")
+    stroke = (annot.colors or {}).get("stroke")
+    return OverlayItem(
+        kind="line",
+        page=index,
+        rect=(x1, y1, x2, y2),
+        font_size=float(size) if size_kind in ("int", "real") else DEFAULT_FONT_SIZE,
+        color=_hex(stroke),
+    )
+
+
 def read_overlays(doc: Document, remove: bool = False) -> list[OverlayItem]:
     """PDR-tagged annotations as editable items; ``remove`` deletes them from memory.
 
@@ -116,10 +161,16 @@ def read_overlays(doc: Document, remove: bool = False) -> list[OverlayItem]:
         for index in range(pdf.page_count):
             page = pdf[index]
             doomed = []
-            for annot in page.annots(types=[_C.PDF_ANNOT_FREE_TEXT]):
+            for annot in page.annots(types=[_C.PDF_ANNOT_FREE_TEXT, _C.PDF_ANNOT_LINE]):
                 if pdf.xref_get_key(annot.xref, "PDR")[1] != "1":
                     continue
                 kind = pdf.xref_get_key(annot.xref, "PDRKind")[1].lstrip("/")
+                if kind == "line":
+                    line = _read_line(pdf, page, annot, index)
+                    if line is not None:
+                        items.append(line)
+                        doomed.append(annot)
+                    continue
                 if kind not in (*TEXT_KINDS, *MARK_KINDS):
                     continue
                 r = annot.rect * page.rotation_matrix

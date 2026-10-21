@@ -34,6 +34,7 @@ TOOL_BUTTONS = (
     ("check", "Checkmark", "check", "Click to place a tick"),
     ("cross", "Cross", "x", "Click to place a cross"),
     ("dot", "Dot", "dot", "Click to place a dot"),
+    ("line", "Line", "minus", "Line"),
     ("date", "Date", "calendar", "Click to place today's date"),
 )
 NAME_ROLE = Qt.ItemDataRole.UserRole
