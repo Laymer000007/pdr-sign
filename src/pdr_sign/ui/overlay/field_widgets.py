@@ -175,6 +175,51 @@ class ToggleField(QGraphicsWidget):
         self.update()
 
 
+class SignHere(QGraphicsWidget):
+    """An empty signature field: a dashed "Sign here" box. Clicking it signs into it."""
+
+    def __init__(
+        self, field: FieldInfo, parent: PageItem, on_click: Callable[[FieldInfo], None]
+    ) -> None:
+        super().__init__(parent)
+        self.field = field
+        self.on_click = on_click
+        x0, y0, x1, y1 = field.rect
+        self.setGeometry(QRectF(x0, y0, x1 - x0, y1 - y0))
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip(f"Sign here ({field.display_name})")
+        self.setAcceptHoverEvents(True)
+        self.setZValue(4)  # below placed items, so a placed signature stays grabbable
+
+    def paint(
+        self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None
+    ) -> None:
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        tint = QColor(FieldColors.accent)
+        tint.setAlpha(18)
+        pen = QPen(FieldColors.accent, 0, Qt.PenStyle.DashLine)
+        painter.setPen(pen)
+        painter.setBrush(tint)
+        painter.drawRoundedRect(self.rect(), 3, 3)
+        font = painter.font()
+        font.setPixelSize(max(6, round(min(11.0, self.rect().height() * 0.3))))
+        painter.setFont(font)
+        painter.setPen(FieldColors.accent)
+        painter.drawText(
+            self.rect().adjusted(4, 2, -4, -2),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom,
+            "Sign here",
+        )
+
+    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        event.accept()
+
+    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        if self.rect().contains(event.pos()):
+            self.on_click(self.field)
+        event.accept()
+
+
 FieldGraphic = FieldProxy | ToggleField
 
 
@@ -183,6 +228,12 @@ class FieldLayer:
 
     def __init__(self, model: FillModel, pages: list[PageItem]) -> None:
         self.model = model
+        self.on_sign_field: Callable[[FieldInfo], None] = lambda _f: None
+        self.sign_here = [
+            SignHere(f, pages[f.page], lambda f: self.on_sign_field(f))
+            for f in model.fields
+            if f.kind == "signature" and not f.is_signed
+        ]
         self.graphics: list[FieldGraphic] = []
         self.by_name: dict[str, list[FieldGraphic]] = {}
         self._setters: dict[int, Callable[[FieldValue], None]] = {}

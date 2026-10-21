@@ -7,7 +7,10 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
 
 from pdr_sign.services import forms
 from pdr_sign.services.document import Document
+from pdr_sign.services.forms import FieldInfo
 from pdr_sign.services.search import SearchHit
+from pdr_sign.services.signatures import SignatureStore, as_kind
+from pdr_sign.ui import signature_dialog
 from pdr_sign.ui.canvas import Canvas
 from pdr_sign.ui.fill_model import FillModel
 from pdr_sign.ui.fill_sign_panel import FillSignPanel
@@ -17,8 +20,10 @@ from pdr_sign.ui.render_scheduler import RenderScheduler
 from pdr_sign.ui.search_bar import SearchBar
 from pdr_sign.ui.search_controller import SearchController
 from pdr_sign.ui.sidebar import Sidebar
+from pdr_sign.ui.signature_library import SignatureLibrary
 from pdr_sign.ui.theme import (
     ANIMATION_MS,
+    LIGHT,
     PANEL_WIDTH,
     SIDEBAR_WIDTH,
     Tokens,
@@ -34,10 +39,16 @@ class DocumentTab(QWidget):
     fill_done = Signal()
 
     def __init__(
-        self, doc: Document, scheduler: RenderScheduler, parent: QWidget | None = None
+        self,
+        doc: Document,
+        scheduler: RenderScheduler,
+        parent: QWidget | None = None,
+        library: SignatureLibrary | None = None,
     ) -> None:
         super().__init__(parent)
         self.doc = doc
+        self.library = library or SignatureLibrary(SignatureStore())
+        self._tokens: Tokens = LIGHT
         self.view = Canvas(doc, scheduler, self)
         self.search_bar = SearchBar(self)
         self.search = SearchController(doc, self)
@@ -109,6 +120,15 @@ class DocumentTab(QWidget):
         self.panel.style_changed.connect(layer.apply_style)
         self.panel.field_activated.connect(self.focus_field)
         self.panel.done.connect(self.fill_done)
+        self.panel.sign_requested.connect(self.sign)
+        for strip in self.panel.saved.values():
+            strip.chosen.connect(self._arm_saved)
+            strip.new_requested.connect(self.create_signature)
+            strip.delete_requested.connect(lambda k, i: self.library.remove(as_kind(k), i))
+        self.library.changed.connect(self._refresh_saved)
+        if self.view.field_layer is not None:
+            self.view.field_layer.on_sign_field = self.sign_field
+        self._refresh_saved()
         self.panel.set_values(self.model.values)
         self.model.field_changed.connect(lambda *_: self.panel.set_values(self.model.values))
         self.model.dirty_changed.connect(self.dirty_changed)
@@ -132,6 +152,50 @@ class DocumentTab(QWidget):
         else:
             self.panel.setMaximumWidth(target)
             self.panel_divider.setVisible(visible)
+
+    # --- signatures -------------------------------------------------------------------
+
+    def sign(self, kind: str) -> None:
+        """The Signature/Initials tool: place the latest one, or create the first."""
+        latest = self.library.latest(as_kind(kind))
+        if latest is None:
+            self.create_signature(kind)
+        else:
+            self._arm(kind, latest.png)
+
+    def sign_field(self, field: FieldInfo) -> None:
+        """Clicked an empty signature field: sign into it (creating a signature if needed)."""
+        latest = self.library.latest("signature")
+        png = latest.png if latest else self._ask("signature")
+        if png is not None and self.view.fill_layer is not None:
+            self.view.fill_layer.sign_field(field, png)
+
+    def _ask(self, kind: str) -> bytes | None:
+        answer = signature_dialog.ask_signature(as_kind(kind), self._tokens, self)
+        if answer is None:
+            return None
+        png, remember = answer
+        self.library.add(as_kind(kind), png, remember)
+        return png
+
+    def create_signature(self, kind: str) -> None:
+        png = self._ask(kind)
+        if png is not None:
+            self._arm(kind, png)
+
+    def _arm_saved(self, kind: str, item_id: str) -> None:
+        item = next((i for i in self.library.items(as_kind(kind)) if i.id == item_id), None)
+        if item is not None:
+            self._arm(kind, item.png)
+
+    def _arm(self, kind: str, png: bytes) -> None:
+        layer = self.view.fill_layer
+        if layer is not None:
+            layer.arm_image(kind, png)
+
+    def _refresh_saved(self) -> None:
+        for kind, strip in self.panel.saved.items():
+            strip.set_items(self.library.items(as_kind(kind)))
 
     def focus_field(self, name: str) -> None:
         if self.view.field_layer is not None:
@@ -180,6 +244,7 @@ class DocumentTab(QWidget):
         self.view.setFocus()
 
     def set_tokens(self, t: Tokens) -> None:
+        self._tokens = t
         self.search_bar.set_tokens(t)
         self.panel.set_tokens(t)
         self.panel.set_values(self.model.values)

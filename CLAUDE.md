@@ -21,6 +21,9 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest     # headless (CI uses xvfb-run)
 .venv/bin/python tools/fill_check.py some.pdf  # fill every field like Save does; copy in build/verify
 ```
 
+Saved signatures are personal data: keep their folder 0700 and files 0600, and never log,
+upload or commit them.
+
 `samples/private/` holds the owner's real forms with personal data: never commit, copy
 into the repo, or publish them. Filled copies go to the git-ignored `build/verify/`.
 Check them in Firefox or in `tools/pdfjs-check/viewer.html` (same engine).
@@ -40,6 +43,8 @@ Check them in Firefox or in `tools/pdfjs-check/viewer.html` (same engine).
 - Scene/item coordinates in the canvas are PDF points in visible (rotated) orientation.
   `get_links()` already returns visible coordinates; `search_for()` does not (apply
   `page.rotation_matrix`).
+- Background work goes through `ui.worker.Runner`. Never emit Qt signals or touch Qt
+  objects from a worker thread (GIL / Qt-mutex deadlock); post results instead.
 - Never connect a signal that carries an int straight to `QTimer.start`; the int becomes
   the interval. Use `lambda _: timer.start()`.
 - Tests must never open a real modal dialog (it hangs the run). Stub `ui.dialogs`

@@ -25,6 +25,7 @@ from pdr_sign.services.stamps import (
     TEXT_COLORS,
 )
 from pdr_sign.ui import icons
+from pdr_sign.ui.saved_signatures import SavedStrip
 from pdr_sign.ui.stepper import Stepper
 from pdr_sign.ui.theme import LIGHT, PANEL_WIDTH, SPACING, Tokens
 
@@ -36,7 +37,10 @@ TOOL_BUTTONS = (
     ("dot", "Dot", "dot", "Click to place a dot"),
     ("line", "Line", "minus", "Line"),
     ("date", "Date", "calendar", "Click to place today's date"),
+    ("initials", "Initials", "pen-tool", "Place your initials"),
+    ("signature", "Signature", "signature", "Place your signature"),
 )
+IMAGE_TOOLS = ("initials", "signature")
 NAME_ROLE = Qt.ItemDataRole.UserRole
 
 
@@ -44,6 +48,7 @@ class FillSignPanel(QWidget):
     tool_selected = Signal(str)
     style_changed = Signal(float, str)  # font size, colour
     field_activated = Signal(str)  # field name
+    sign_requested = Signal(str)  # "signature" / "initials": arm the latest or create one
     done = Signal()
 
     def __init__(self, fields: list[FieldInfo], parent: QWidget | None = None) -> None:
@@ -119,6 +124,8 @@ class FillSignPanel(QWidget):
         for widget in (self.fields_title, self.fields):
             widget.setVisible(bool(fillable))
 
+        self.saved = {kind: SavedStrip(kind) for kind in ("signature", "initials")}
+
         self.done_button = QPushButton("Done")
         self.done_button.setProperty("primary", True)
         self.done_button.setToolTip("Close Fill & Sign (Ctrl+E)")
@@ -131,6 +138,8 @@ class FillSignPanel(QWidget):
         column.addLayout(tools)
         column.addWidget(style_label)
         column.addLayout(color_row)
+        column.addWidget(self.saved["signature"])
+        column.addWidget(self.saved["initials"])
         column.addWidget(self.fields_title)
         column.addWidget(self.fields, 1)
         if not fillable:
@@ -141,6 +150,8 @@ class FillSignPanel(QWidget):
 
     def set_tokens(self, t: Tokens) -> None:
         self._tokens = t
+        for strip in self.saved.values():
+            strip.set_tokens(t)
         self.size_box.set_tokens(t)
         for button in self._buttons.values():
             name = str(button.property("iconName"))
@@ -177,6 +188,10 @@ class FillSignPanel(QWidget):
         self.style_changed.emit(float(self.size_box.value()), self.current_color())
 
     def _on_tool(self, tool: str, checked: bool) -> None:
+        if checked and tool in IMAGE_TOOLS:
+            self.set_tool("")  # lit again once something is armed (tool_changed)
+            self.sign_requested.emit(tool)
+            return
         self.set_tool(tool if checked else "")
         self.tool_selected.emit(tool if checked else "")
 

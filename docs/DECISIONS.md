@@ -167,3 +167,51 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   point. A click (a drag under 3 pt) gives a 40 pt line, to the right or to the left
   when there's no room. Clicks only select a line within 8 screen px of its stroke,
   not anywhere in its bounding box.
+
+## Phase 4
+
+- **Photo cleanup uses Pillow only** (numpy isn't an allowed dependency). Steps: EXIF
+  turn, then crop to the sheet of paper (bright row and column bands) when it lies on a
+  darker surface. Paper brightness is estimated as a blurred local maximum at 1/8
+  scale, so shadows and uneven light cancel out. Ink is measured as darkness relative
+  to that paper, with an Otsu threshold moved by the "Cleanup" slider and a soft
+  edge. Then a 3×3 median removes specks, solid border bands are cleared, and the
+  image is straightened by the ink's principal axis (auto only within ±15°). Finally
+  it's recoloured (black, blue or the photo's own ink) and trimmed. A 12 MP photo
+  takes about 0.2–0.4 s, off the UI thread.
+- **Upload tab controls:** drag a crop box on the photo, quarter turns, a straighten
+  slider (shows the auto angle, Auto resets it), and cleanup strength. Uploads that
+  already have real transparency are only trimmed and recoloured.
+- **Draw tab is tuned for touchpads:** a lazy-brush stabiliser (5 canvas units), a
+  centred moving average when a stroke ends (both ends kept), quadratic curves through
+  midpoints, slight speed-based thinning, and tablet pressure when present. The canvas
+  is a fixed 1000×400 logical area, scaled to the widget. It always looks like white
+  paper, even in dark mode, because the ink is black or blue; the Upload preview's
+  checkerboard is light for the same reason.
+- **Type tab:** Caveat or Dancing Script at 160 px, then trimmed. Ink is shared with
+  the Draw tab.
+- **Store:** `signature-<µs>-<id>.png` / `initials-…png` in the signature folder
+  (`Settings.signature_dir`, default `data_dir()/signatures`, snap-aware). The folder
+  is 0700 and files 0600. Saving a sixth of a kind drops the oldest. "Remember"
+  unticked keeps it in memory for this session only.
+- **Initials are images**, made the same three ways as signatures; they're not text.
+- **Placement:** the Signature/Initials tool uses the most recent one, or opens the
+  dialog when there's none. Panel thumbnails pick a specific one; right-click deletes.
+  Default width is 150 pt for a signature and 56 pt for initials, centred on the click,
+  aspect kept, one-shot. Clicking in or within 12 pt of an empty signature field fits
+  the image inside it (2 pt inset, centred). A move that ends near a field snaps too;
+  a resize doesn't, so shrinking one inside a field sticks. Empty signature fields
+  show a dashed "Sign here" box that signs straight into the field.
+- **Stamping** uses `insert_image(..., keep_proportion=True, overlay=True,
+  rotate=page.rotation)`, so it's upright on rotated pages (tested on all four).
+  Signatures become page content: permanent, and they don't reopen as editable items.
+- **PySide6 stub quirk:** `QImage.save` / `QImage.fromData` are typed as taking
+  `bytes` for the format, but only `str` works at runtime. Those calls carry a
+  `type: ignore` with a comment.
+- **Worker threads never touch Qt** (`ui/worker.py`). Emitting a signal from a worker
+  takes Qt's signal-slot mutex and the GIL; the UI thread takes the same pair in the
+  opposite order when it connects signals or creates timers. Under load that
+  deadlocked intermittently (the test suite hung on a real X11 display). Rendering,
+  search and photo cleanup now run through `Runner`: workers put results on a
+  `queue.SimpleQueue`, and the UI thread drains it on an 8 ms timer that runs only
+  while jobs are outstanding. Five full xcb runs after the change: no hangs.

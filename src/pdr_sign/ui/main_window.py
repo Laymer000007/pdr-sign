@@ -7,13 +7,11 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import (
-    QAction,
     QCloseEvent,
     QDesktopServices,
     QDragEnterEvent,
     QDragLeaveEvent,
     QDropEvent,
-    QKeySequence,
 )
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
@@ -32,12 +30,14 @@ from pdr_sign.services import settings as settings_service
 from pdr_sign.services.document import Document, DocumentError, PasswordRequired, WrongPassword
 from pdr_sign.services.recent import RecentFiles
 from pdr_sign.services.settings import Settings
-from pdr_sign.ui import dialogs, icons, printing
+from pdr_sign.services.signatures import SignatureStore
+from pdr_sign.ui import dialogs, icons, printing, shortcuts
 from pdr_sign.ui.canvas import Canvas
 from pdr_sign.ui.document_tab import DocumentTab
 from pdr_sign.ui.empty_state import EmptyState
 from pdr_sign.ui.header_bar import HeaderBar
 from pdr_sign.ui.render_scheduler import RenderScheduler
+from pdr_sign.ui.signature_library import SignatureLibrary
 from pdr_sign.ui.theme import Tokens
 
 SAFE_LINK_SCHEMES = {"http", "https", "mailto"}
@@ -92,8 +92,9 @@ class MainWindow(QMainWindow):
         self.tabs: list[DocumentTab] = []
         self._printer: QPrinter | None = None  # kept so printer choices persist
         self.fill_mode = False
+        self.signatures = SignatureLibrary(SignatureStore(self.settings.signature_dir), self)
         self._connect()
-        self._add_shortcuts()
+        shortcuts.install(self)
         self.tokens = tokens
         self.set_tokens(tokens)
         self._refresh_chrome()
@@ -116,39 +117,6 @@ class MainWindow(QMainWindow):
         self.empty_state.recent_requested.connect(lambda p: self.open_paths([p]))
         self.tab_bar.currentChanged.connect(self._on_tab_changed)
         self.tab_bar.tabMoved.connect(self._on_tab_moved)
-
-    def _add_shortcuts(self) -> None:
-        def add(keys: list[QKeySequence | QKeySequence.StandardKey | str], slot: object) -> QAction:
-            action = QAction(self)
-            action.setShortcuts([QKeySequence(k) for k in keys])
-            action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
-            action.triggered.connect(slot)
-            self.addAction(action)
-            return action
-
-        add([QKeySequence.StandardKey.Open], self.browse)
-        add([QKeySequence.StandardKey.Close], lambda: self._with_tab(self.close_tab))
-        add(["Ctrl+Tab"], lambda: self._cycle_tab(1))
-        add(["Ctrl+Shift+Tab", "Ctrl+Backtab"], lambda: self._cycle_tab(-1))
-        add(["Ctrl++", "Ctrl+="], lambda: self._with_tab(lambda t: t.view.zoom_in()))
-        add(["Ctrl+-"], lambda: self._with_tab(lambda t: t.view.zoom_out()))
-        add(["Ctrl+0"], lambda: self._with_tab(self._apply_default_zoom))
-        add(["F9"], lambda: self.set_sidebar_visible(not self.settings.show_sidebar))
-        add([QKeySequence.StandardKey.Find], lambda: self._with_tab(lambda t: t.open_search()))
-        add(
-            [QKeySequence.StandardKey.Copy],
-            lambda: self._with_tab(lambda t: t.view.copy_selection()),
-        )
-        add([QKeySequence.StandardKey.Print], self.print_current)
-        add(["Ctrl+E"], lambda: self.set_fill_mode(not self.fill_mode))
-        add(
-            [QKeySequence.StandardKey.Undo],
-            lambda: self._with_tab(lambda t: t.model.undo_stack.undo()),
-        )
-        add(
-            [QKeySequence.StandardKey.Redo, "Ctrl+Shift+Z"],
-            lambda: self._with_tab(lambda t: t.model.undo_stack.redo()),
-        )
 
     # --- tabs -----------------------------------------------------------------
 
@@ -229,7 +197,7 @@ class MainWindow(QMainWindow):
                 return None
 
     def _add_tab(self, doc: Document) -> None:
-        tab = DocumentTab(doc, self.scheduler, self)
+        tab = DocumentTab(doc, self.scheduler, self, library=self.signatures)
         tab.view.current_page_changed.connect(lambda i, t=tab: self._on_page(t, i))
         tab.view.zoom_changed.connect(lambda z, m, t=tab: self._on_zoom(t, z, m))
         tab.external_link.connect(self.open_external_link)

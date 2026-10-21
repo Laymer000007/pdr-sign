@@ -8,48 +8,38 @@ from __future__ import annotations
 
 import bisect
 import threading
+from collections.abc import Callable
+from functools import partial
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
+from PySide6.QtCore import QObject, Signal
 
 from pdr_sign.services.document import Document
 from pdr_sign.services.search import MAX_HITS, SearchHit, page_order, search_page
-
-_pool: QThreadPool | None = None
-
-
-def search_pool() -> QThreadPool:
-    global _pool
-    if _pool is None:
-        _pool = QThreadPool()
-        _pool.setMaxThreadCount(1)
-    return _pool
+from pdr_sign.ui.worker import Runner
 
 
-class _Bridge(QObject):
-    page_done = Signal(int, int, object)  # token, page, list[SearchHit]
-    finished = Signal(int)  # token
-
-
-class _SearchJob(QRunnable):
-    def __init__(self, doc: Document, query: str, start: int, token: int, bridge: _Bridge) -> None:
-        super().__init__()
-        self.doc, self.query, self.start, self.token = doc, query, start, token
-        self.bridge = bridge
-        self.cancelled = threading.Event()
-
-    def run(self) -> None:
-        found = 0
-        for page in page_order(self.doc.page_count, self.start):
-            if self.cancelled.is_set() or found >= MAX_HITS:
-                break
-            try:
-                hits = search_page(self.doc, page, self.query)
-            except (ValueError, RuntimeError):  # document closed underneath us
-                return
-            if hits:
-                found += len(hits)
-                self.bridge.page_done.emit(self.token, page, hits)
-        self.bridge.finished.emit(self.token)
+def _search(
+    runner: Runner,
+    on_page: Callable[[int, int, list[SearchHit]], None],
+    doc: Document,
+    query: str,
+    start: int,
+    token: int,
+    cancelled: threading.Event,
+) -> int:
+    """Worker side: search page by page, posting each page's hits as they're found."""
+    found = 0
+    for page in page_order(doc.page_count, start):
+        if cancelled.is_set() or found >= MAX_HITS:
+            break
+        try:
+            hits = search_page(doc, page, query)
+        except (ValueError, RuntimeError):  # document closed underneath us
+            break
+        if hits:
+            found += len(hits)
+            runner.post(on_page, token, page, hits)
+    return token
 
 
 class SearchController(QObject):
@@ -66,10 +56,8 @@ class SearchController(QObject):
         self._pages: list[int] = []  # parallel to hits, for bisect
         self._current: SearchHit | None = None
         self._token = 0
-        self._job: _SearchJob | None = None
-        self._bridge = _Bridge(self)
-        self._bridge.page_done.connect(self._on_page)
-        self._bridge.finished.connect(self._on_finished)
+        self._cancel: threading.Event | None = None
+        self._runner = Runner(threads=1, parent=self)
 
     @property
     def current_index(self) -> int:
@@ -94,13 +82,23 @@ class SearchController(QObject):
             return
         self._token += 1
         self.running = True
-        self._job = _SearchJob(self.doc, self.query, from_page, self._token, self._bridge)
-        search_pool().start(self._job)
+        self._cancel = threading.Event()
+        work = partial(
+            _search,
+            self._runner,
+            self._on_page,
+            self.doc,
+            self.query,
+            from_page,
+            self._token,
+            self._cancel,
+        )
+        self._runner.submit(work, self._on_finished)
 
     def cancel(self) -> None:
-        if self._job is not None:
-            self._job.cancelled.set()
-            self._job = None
+        if self._cancel is not None:
+            self._cancel.set()
+            self._cancel = None
         self.running = False
 
     def clear(self) -> None:
@@ -129,8 +127,8 @@ class SearchController(QObject):
             self._current = hits[0]
             self.current_changed.emit(self._current)
 
-    def _on_finished(self, token: int) -> None:
+    def _on_finished(self, token: object) -> None:
         if token == self._token:
             self.running = False
-            self._job = None
+            self._cancel = None
             self.finished.emit()

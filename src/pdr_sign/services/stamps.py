@@ -1,9 +1,9 @@
 """Fill & Sign overlay items and how they are written into the PDF. Qt-free.
 
-Text, date, initials and mark items (check, cross, dot) become FreeText annotations
+Text, date and mark items (check, cross, dot) become FreeText annotations
 and lines become Line annotations, all tagged ``/PDR 1`` (and ``/PDRKind /<kind>``),
 so PDR can reopen them as editable items while every other viewer just shows them.
-Signatures are stamped as images in Phase 4.
+Signatures and initials are stamped into the page content as images.
 """
 
 from __future__ import annotations
@@ -23,7 +23,8 @@ _C: Any = pymupdf
 
 OverlayKind = Literal["text", "date", "initials", "check", "cross", "dot", "line", "signature"]
 MARK_KINDS: tuple[OverlayKind, ...] = ("check", "cross", "dot")
-TEXT_KINDS: tuple[OverlayKind, ...] = ("text", "date", "initials")
+TEXT_KINDS: tuple[OverlayKind, ...] = ("text", "date")
+IMAGE_KINDS: tuple[OverlayKind, ...] = ("signature", "initials")
 LINE_LENGTH = 40.0  # points, for a line placed with a plain click
 
 # ZapfDingbats glyphs, available in every PDF viewer without embedding a font.
@@ -47,7 +48,7 @@ class OverlayItem:
     font_size: float = DEFAULT_FONT_SIZE
     color: str = TEXT_COLORS["black"]
     id: str = field(default_factory=new_id)
-    image: bytes | None = None  # signature PNG (Phase 4)
+    image: bytes | None = None  # signature / initials PNG (transparent, trimmed)
 
     # For a line, ``rect`` holds its two end points (x1, y1, x2, y2) as drawn, not a
     # normalised box: the direction matters for the end-point handles.
@@ -58,6 +59,10 @@ class OverlayItem:
     @property
     def is_mark(self) -> bool:
         return self.kind in MARK_KINDS
+
+    @property
+    def is_image(self) -> bool:
+        return self.kind in IMAGE_KINDS
 
 
 def line_width(size: float) -> float:
@@ -87,9 +92,11 @@ def write_overlays(doc: Document, items: list[OverlayItem]) -> set[int]:
     pages: set[int] = set()
     with doc.locked() as pdf:
         for item in items:
-            if item.kind == "signature":
-                continue  # Phase 4: images, not annotations
             page = pdf[item.page]
+            if item.kind in IMAGE_KINDS:
+                _write_signature(page, item)
+                pages.add(item.page)
+                continue
             if item.kind == "line":
                 _write_line(pdf, page, item)
                 pages.add(item.page)
@@ -117,6 +124,18 @@ def write_overlays(doc: Document, items: list[OverlayItem]) -> set[int]:
             pages.add(item.page)
     doc.invalidate_render()
     return pages
+
+
+def _write_signature(page: pymupdf.Page, item: OverlayItem) -> None:
+    """Stamp a signature image into the page content. Permanent, like other Fill & Sign
+    tools: it is not an annotation and does not reopen as an editable item."""
+    if not item.image:
+        return
+    rect = pymupdf.Rect(item.rect) * page.derotation_matrix
+    # ``rotate`` turns the image with the page so it reads upright as displayed.
+    page.insert_image(
+        rect, stream=item.image, keep_proportion=True, overlay=True, rotate=page.rotation
+    )
 
 
 def _write_line(pdf: pymupdf.Document, page: pymupdf.Page, item: OverlayItem) -> None:

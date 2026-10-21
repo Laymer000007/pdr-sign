@@ -1,4 +1,4 @@
-"""Background tile rendering: a QThreadPool worker renders, the UI thread caches.
+"""Background tile rendering: a worker renders, the UI thread caches.
 
 Each consumer (a page view, a thumbnail list) registers what it currently *wants*.
 Wants are replaced wholesale on every scroll or zoom change, so stale work is dropped
@@ -10,12 +10,14 @@ from __future__ import annotations
 
 from collections.abc import Hashable
 from dataclasses import dataclass
+from functools import partial
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QImage, QPixmap
 
 from pdr_sign.services.document import Document, DocumentError, Rect
 from pdr_sign.services.render_cache import RenderCache
+from pdr_sign.ui.worker import Runner
 
 
 @dataclass(frozen=True)
@@ -28,27 +30,15 @@ class RenderRequest:
     clip: Rect | None = None
 
 
-class _Bridge(QObject):
-    done = Signal(object, object)  # key, QImage | None
-
-
-class _Job(QRunnable):
-    def __init__(self, request: RenderRequest, bridge: _Bridge) -> None:
-        super().__init__()
-        self.request = request
-        self.bridge = bridge
-
-    def run(self) -> None:
-        r = self.request
-        image: QImage | None
-        try:
-            tile = r.doc.render_tile(r.page, r.zoom, r.dpr, r.clip)
-            image = QImage(
-                tile.data, tile.width, tile.height, tile.stride, QImage.Format.Format_RGB888
-            ).copy()  # copy: the QImage must own its pixels once ``tile`` is gone
-        except (DocumentError, RuntimeError, ValueError):
-            image = None  # e.g. the document was closed while this job was queued
-        self.bridge.done.emit(r.key, image)
+def render(r: RenderRequest) -> QImage | None:
+    """Worker side: pixels for one request (QImage is safe off the UI thread)."""
+    try:
+        tile = r.doc.render_tile(r.page, r.zoom, r.dpr, r.clip)
+    except (DocumentError, RuntimeError, ValueError):
+        return None  # e.g. the document was closed while this job was queued
+    return QImage(
+        tile.data, tile.width, tile.height, tile.stride, QImage.Format.Format_RGB888
+    ).copy()  # copy: the QImage must own its pixels once ``tile`` is gone
 
 
 class RenderScheduler(QObject):
@@ -59,10 +49,7 @@ class RenderScheduler(QObject):
     def __init__(self, cache: RenderCache[QPixmap] | None = None) -> None:
         super().__init__()
         self.cache: RenderCache[QPixmap] = cache or RenderCache()
-        self._pool = QThreadPool(self)
-        self._pool.setMaxThreadCount(1)
-        self._bridge = _Bridge(self)
-        self._bridge.done.connect(self._on_done)
+        self._runner = Runner(threads=1, parent=self)
         self._wants: dict[str, list[RenderRequest]] = {}
         self._priority: dict[str, int] = {}
         self._in_flight: set[Hashable] = set()
@@ -87,7 +74,7 @@ class RenderScheduler(QObject):
 
     def wait_idle(self, msecs: int = 5000) -> bool:
         """Block until queued work finishes (tests only)."""
-        return bool(self._pool.waitForDone(msecs))
+        return self._runner.wait_idle(msecs)
 
     def _next(self) -> RenderRequest | None:
         for owner in sorted(self._wants, key=lambda o: self._priority.get(o, 0)):
@@ -99,16 +86,16 @@ class RenderScheduler(QObject):
         return None
 
     def _dispatch(self) -> None:
-        while len(self._in_flight) < self._pool.maxThreadCount():
+        while len(self._in_flight) < 1:
             request = self._next()
             if request is None:
                 return
             self._in_flight.add(request.key)
-            self._pool.start(_Job(request, self._bridge))
+            self._runner.submit(partial(render, request), partial(self._on_done, request.key))
 
-    def _on_done(self, key: Hashable, image: QImage | None) -> None:
+    def _on_done(self, key: Hashable, image: object) -> None:
         self._in_flight.discard(key)
-        if image is not None:
+        if isinstance(image, QImage):
             pixmap = QPixmap.fromImage(image)
             # Pixmaps are stored 32 bits per pixel whatever the source format.
             self.cache.put(key, pixmap, pixmap.width() * pixmap.height() * 4)
