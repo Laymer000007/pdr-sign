@@ -37,6 +37,10 @@ class Tokens:
     # Derived helpers for hover/pressed states. These are neutral, not accent.
     hover: str
     pressed: str
+    # Search highlights are drawn on (white) pages, so both themes share them. Amber
+    # rather than accent: the accent is reserved for selection and focus.
+    search_hit: str = "#FCD34D"
+    search_current: str = "#F59E0B"
 
 
 LIGHT = Tokens(
@@ -257,6 +261,7 @@ QTabBar::tab {{
 }}
 QTabBar::tab:selected {{ color: {t.text}; border-bottom: 2px solid {t.accent}; }}
 QTabBar::tab:hover {{ color: {t.text}; }}
+#SidebarTabs QTabBar::tab {{ padding: 8px 6px; }}
 #DocumentTabs {{ border-bottom: 1px solid {t.border}; }}
 #DocumentTabs::tab {{ max-width: 220px; padding: 6px 8px 6px 12px; }}
 #TabClose {{ padding: 2px; border-radius: 4px; }}
@@ -269,6 +274,11 @@ QTabBar::tab:hover {{ color: {t.text}; }}
 #Thumbnails::item:hover {{ background: {t.hover}; }}
 QTreeWidget::item {{ padding: 4px 2px; border-radius: 4px; }}
 QTreeWidget::item:selected {{ background: {t.hover}; color: {t.text}; }}
+
+#SearchBar {{ background: {t.window}; border-bottom: 1px solid {t.border}; }}
+#SearchResults {{ background: {t.window}; border: none; outline: none; }}
+#SearchResults::item {{ padding: 6px 8px; border-radius: 4px; }}
+#SearchResults::item:selected {{ background: {t.hover}; color: {t.text}; }}
 
 #ZoomIndicator {{
     background: {t.surface}; color: {t.text};

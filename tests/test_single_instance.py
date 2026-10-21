@@ -1,8 +1,9 @@
 from pathlib import Path
 
+import pytest
 from pytestqt.qtbot import QtBot
 
-from pdr_sign.services.instance import file_args, send_to_running
+from pdr_sign.services.instance import file_args, send_to_running, socket_path
 from pdr_sign.ui.single_instance import InstanceServer
 
 
@@ -42,3 +43,21 @@ def test_stale_socket_is_replaced(tmp_path: Path) -> None:
 def test_file_args() -> None:
     argv = ["pdr-sign", "--verbose", "a.pdf", "file:///tmp/My%20File.pdf"]
     assert file_args(argv) == ["a.pdf", "/tmp/My File.pdf"]
+
+
+def test_socket_lives_in_xdg_runtime_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = tmp_path / "run" / "snap.pdr-sign"  # what snapd sets under confinement
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime))
+    path = socket_path()
+    assert path.parent == runtime
+    server = InstanceServer(path)
+    assert server.start(), "server should create a missing runtime dir"
+    assert path.exists() and (path.stat().st_mode & 0o777) == 0o600
+    server.stop()
+
+
+def test_overlong_runtime_dir_gets_short_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / ("x" * 60)))
+    assert len(str(socket_path())) <= 107 or socket_path().name.startswith("pdr-sign-")

@@ -49,8 +49,16 @@ def tiles(
                 yield tx, ty, clip
 
 
+def to_qrect(r: Rect) -> QRectF:
+    return QRectF(r[0], r[1], r[2] - r[0], r[3] - r[1])
+
+
 class PageItem(QGraphicsItem):
     SHADOW = QColor(0, 0, 0, 30)
+    # Set from theme tokens by Canvas.set_tokens(); drawn translucently over the page.
+    selection_color = QColor(79, 70, 229, 80)
+    hit_color = QColor(252, 211, 77, 110)
+    current_hit_color = QColor(245, 158, 11, 150)
 
     def __init__(self, doc: Document, info: PageInfo, scheduler: RenderScheduler) -> None:
         super().__init__()
@@ -60,6 +68,9 @@ class PageItem(QGraphicsItem):
         self.render_zooms: tuple[float, ...] = ()  # fallback first, current last
         self.dpr = 1.0
         self._links: list[LinkInfo] | None = None
+        self.search_rects: list[Rect] = []
+        self.current_hit: Rect | None = None
+        self.selection_rects: list[Rect] = []
         self._zoom = 1.0
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemUsesExtendedStyleOption)
 
@@ -111,5 +122,15 @@ class PageItem(QGraphicsItem):
                 key = tile_key(self.doc, self.index, zoom, self.dpr, tx, ty)
                 pixmap = self.scheduler.pixmap(key)
                 if pixmap is not None:
-                    target = QRectF(clip[0], clip[1], clip[2] - clip[0], clip[3] - clip[1])
-                    painter.drawPixmap(target, pixmap, QRectF(pixmap.rect()))
+                    painter.drawPixmap(to_qrect(clip), pixmap, QRectF(pixmap.rect()))
+        self._paint_highlights(painter)
+
+    def _paint_highlights(self, painter: QPainter) -> None:
+        pad = 1.0  # points of breathing room around glyph boxes
+        for rect in self.search_rects:
+            painter.fillRect(to_qrect(rect).adjusted(-pad, -pad, pad, pad), self.hit_color)
+        if self.current_hit is not None:
+            box = to_qrect(self.current_hit).adjusted(-pad, -pad, pad, pad)
+            painter.fillRect(box, self.current_hit_color)
+        for rect in self.selection_rects:
+            painter.fillRect(to_qrect(rect).adjusted(0, -pad / 2, 0, pad / 2), self.selection_color)

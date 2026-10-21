@@ -100,3 +100,41 @@ def encrypted_pdf(tmp_path: Path) -> Path:
     )
     doc.close()
     return out
+
+
+class FakeClipboard:
+    """Stands in for the system clipboard so tests never overwrite the user's."""
+
+    def __init__(self) -> None:
+        self.texts: dict[str, str] = {}
+
+    def setText(self, text: str, mode: object = None) -> None:
+        self.texts["selection" if "Selection" in str(mode) else "clipboard"] = text
+
+    def text(self) -> str:
+        return self.texts.get("clipboard", "")
+
+    def supportsSelection(self) -> bool:
+        return True
+
+
+@pytest.fixture(autouse=True)
+def fake_clipboard(monkeypatch: pytest.MonkeyPatch) -> FakeClipboard:
+    board = FakeClipboard()
+    monkeypatch.setattr("pdr_sign.ui.canvas.clipboard", lambda: board)
+    return board
+
+
+def trigger_shortcut(widget: object, keys: str) -> None:
+    """Fire the action bound to ``keys`` without needing an active window (xcb/xvfb)."""
+    from PySide6.QtGui import QKeySequence
+
+    wanted = QKeySequence(keys)
+    for action in widget.actions():  # type: ignore[attr-defined]
+        if any(
+            seq.matches(wanted) == QKeySequence.SequenceMatch.ExactMatch
+            for seq in action.shortcuts()
+        ):
+            action.trigger()
+            return
+    raise AssertionError(f"no action bound to {keys}")

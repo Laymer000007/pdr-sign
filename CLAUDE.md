@@ -1,7 +1,10 @@
 # PDR – Portable Document Read and Sign
 
-The spec is `BUILD_PROMPT.md`. Choices it doesn't cover are logged in `docs/DECISIONS.md`;
-add a new entry whenever you make one.
+The spec is `BUILD_PROMPT.md`. Owner additions to the phases are in `docs/ROADMAP.md`
+(check it at the start of every phase). Choices the spec doesn't cover are logged in
+`docs/DECISIONS.md`; add a new entry whenever you make one.
+
+The GitHub repo stays **private** until just before the Phase 6 release.
 
 ## Commands
 
@@ -36,6 +39,10 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest     # headless (CI uses xvfb-run)
   the interval. Use `lambda _: timer.start()`.
 - Tests must never open a real modal dialog (it hangs the run). Stub `ui.dialogs`
   functions; `faulthandler_timeout` dumps stacks if one slips through.
+- Tests must never touch the real clipboard: use `ui.canvas.clipboard()` in code (the
+  autouse `fake_clipboard` fixture replaces it). Trigger shortcuts with
+  `tests.conftest.trigger_shortcut` – key clicks need an active window, which xcb/xvfb
+  runs don't guarantee.
 - Colours come only from tokens in `ui/theme.py`. The QSS is generated from them, so
   never hard-code a colour in a widget. Accent is reserved for the primary action,
   selection, focus rings and the active tool.

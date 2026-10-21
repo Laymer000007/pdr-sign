@@ -1,11 +1,13 @@
-"""Continuous-scroll canvas: layout, zoom, navigation and tile requests."""
+"""Continuous-scroll page view: layout, zoom, navigation and tile requests.
+
+Pointer interaction (links, selection, highlights) lives in ``ui/canvas.py``.
+"""
 
 from __future__ import annotations
 
 from PySide6.QtCore import (
     QEasingCurve,
     QEvent,
-    QPoint,
     QPointF,
     QRectF,
     Qt,
@@ -15,7 +17,6 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QKeyEvent,
-    QMouseEvent,
     QNativeGestureEvent,
     QPainter,
     QResizeEvent,
@@ -25,7 +26,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QFrame, QGraphicsScene, QGraphicsView, QScroller, QWidget
 
 from pdr_sign.services import layout
-from pdr_sign.services.document import Document, LinkInfo
+from pdr_sign.services.document import Document
 from pdr_sign.ui.page_item import PageItem, tile_key, tiles, zoom_key
 from pdr_sign.ui.render_scheduler import RenderRequest, RenderScheduler
 from pdr_sign.ui.theme import ANIMATION_MS, PAGE_GAP, animations_enabled
@@ -34,12 +35,12 @@ from pdr_sign.ui.zoom_indicator import ZoomIndicator
 ZoomMode = str  # "fit-width" | "fit-page" | "" (free zoom)
 SETTLE_MS = 150
 PREFETCH_PAGES = 2
+READING_LINE = 1 / 3  # fraction of the viewport height that decides the current page
 
 
 class PageView(QGraphicsView):
     current_page_changed = Signal(int)
     zoom_changed = Signal(float, str)  # zoom, mode
-    external_link = Signal(str)
 
     def __init__(
         self, doc: Document, scheduler: RenderScheduler, parent: QWidget | None = None
@@ -133,6 +134,24 @@ class PageView(QGraphicsView):
         self._scroll_anim.stop()
         self._scroll_scene_to(None, top, QPointF(0, 0))
         self._update_current(force_page=index)
+
+    def reveal(self, page: int, rect: tuple[float, float, float, float]) -> None:
+        """Scroll so ``rect`` (page points) is visible, centring it if it isn't."""
+        item = self.page_items[page]
+        target = item.mapRectToScene(QRectF(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]))
+        margin = 24 / self.zoom
+        if (
+            not self.visible_scene_rect()
+            .adjusted(margin, margin, -margin, -margin)
+            .contains(target)
+        ):
+            self._scroll_anim.stop()
+            self.centerOn(target.center())
+            # Settle it a third of the way down, where the current-page probe looks,
+            # so the page field agrees with the page the target is on.
+            bar = self.verticalScrollBar()
+            bar.setValue(bar.value() + round(self.viewport().height() * (0.5 - READING_LINE)))
+        self._update_current()
 
     # --- layout ----------------------------------------------------------------
 
@@ -238,7 +257,7 @@ class PageView(QGraphicsView):
             return
         if force_page is None:
             area = self.visible_scene_rect()
-            force_page = self.page_layout.page_at(area.top() + area.height() / 3)
+            force_page = self.page_layout.page_at(area.top() + area.height() * READING_LINE)
         if force_page != self._current:
             self._current = force_page
             self.current_page_changed.emit(force_page)
@@ -300,29 +319,3 @@ class PageView(QGraphicsView):
             self.go_to_page(self.doc.page_count - 1)
         else:
             super().keyPressEvent(event)
-
-    def _link_at(self, pos: QPoint) -> LinkInfo | None:
-        if self.page_layout is None:
-            return None
-        scene = self.mapToScene(pos)
-        item = self.page_items[self.page_layout.page_at(scene.y())]
-        local = item.mapFromScene(scene)
-        return item.link_at(local) if item.page_rect().contains(local) else None
-
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        link = self._link_at(event.position().toPoint())
-        shape = Qt.CursorShape.PointingHandCursor if link else Qt.CursorShape.ArrowCursor
-        self.viewport().setCursor(shape)
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
-            link = self._link_at(event.position().toPoint())
-            if link is not None:
-                if link.uri:
-                    self.external_link.emit(link.uri)
-                elif link.page is not None:
-                    self.go_to_page(link.page, link.y)
-                event.accept()
-                return
-        super().mouseReleaseEvent(event)

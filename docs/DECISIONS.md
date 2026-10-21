@@ -65,7 +65,10 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   (mode 0600). QtNetwork (QLocalServer) and QtDBus aren't on the allowed module list,
   so the server is Python `socket` with a `QSocketNotifier`. The client is Qt-free
   (`services/instance.py`), so a second launch hands over its files in about 60 ms
-  without loading Qt.
+  without loading Qt. Under strict snap confinement `$XDG_RUNTIME_DIR` is the snap's
+  private `/run/user/<uid>/snap.pdr-sign`, which AppArmor allows. The server creates
+  that directory if snapd hasn't, and falls back to a short file name if the path
+  would exceed the 107-byte `sun_path` limit.
 - **External links:** only `http`, `https` and `mailto` open, after confirmation
   unless "Open links without asking" is on. Any other scheme (`file:`, `javascript:`,
   `launch` actions) is refused.
@@ -77,3 +80,34 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   holds theme, default zoom and the links preference.
 - **CI actions bumped** to `actions/checkout@v7` and `actions/setup-python@v7`, because
   Node 20 is deprecated on runners.
+
+## Phase 2
+
+- **Search runs on its own one-thread pool** (separate from rendering), page by page,
+  starting at the page being read and wrapping round. Results stream in, are kept in
+  document order, and redraw at most every 120 ms. A new query cancels the old job.
+  Results stop at 5,000 hits (shown as "5000+").
+- **The first match is the first one at or after the current page**, not the first in
+  the document.
+- **Search highlights are amber** (`search_hit` / `search_current` tokens), not
+  accent: the spec keeps the accent for selection, focus and the active tool. They're
+  drawn on white pages, so both themes share them.
+- **The search result list is the sidebar's third tab.** Searching switches the
+  sidebar to it if the sidebar is open, but never opens a closed sidebar.
+- **Text selection is word-based**, in MuPDF reading order (`get_text("words")`). It
+  can span pages, is painted as one band per line, and is copied with spaces within a
+  line and newlines between lines. A double-click selects a word, the context menu
+  has Copy and "Select page text", and selections also fill the X11/Wayland primary
+  selection (middle-click paste).
+- **Click vs. drag:** a press only starts a selection after the platform drag
+  distance, so clicking a link still follows it. A plain click clears the selection.
+- **`Canvas` (pointer interaction) subclasses `PageView`** (layout, zoom, rendering),
+  to keep both files under 400 lines.
+- **`reveal()` puts a match a third of the way down the viewport**, the same line
+  that decides the "current page", so the page field matches the page the match is on.
+- **Printing** renders each page at 300 dpi on the UI thread with a cancellable
+  progress dialog. A page whose orientation differs from the paper is turned 90°
+  counter-clockwise (the CUPS convention). A "Scaling" tab in the print dialog offers
+  Fit to page (default) or Actual size, centred. Page ranges come from Qt's
+  `QPageRanges`, so "1-3,7" works. Copies and collation are left to the printer
+  driver. The `QPrinter` is kept for the session, so the chosen printer is remembered.

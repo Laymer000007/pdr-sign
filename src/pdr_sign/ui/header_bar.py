@@ -44,6 +44,8 @@ class HeaderBar(QWidget):
     zoom_out_requested = Signal()
     zoom_preset_requested = Signal(object)  # float or "fit-width"/"fit-page"
     about_requested = Signal()
+    search_requested = Signal()
+    print_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -80,9 +82,18 @@ class HeaderBar(QWidget):
         self.zoom_in_button = self._add_icon(icon_button("zoom-in", "Zoom in", "Ctrl++"))
         self.zoom_in_button.clicked.connect(self.zoom_in_requested)
 
+        self.search_button = self._add_icon(icon_button("search", "Search", "Ctrl+F"))
+        self.search_button.clicked.connect(self.search_requested)
+
         self.menu_button = self._add_icon(icon_button("ellipsis-vertical", "Main menu"))
         self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(self.menu_button)
+        self.print_action = QAction("Print…", menu)
+        self.print_action.setShortcut("Ctrl+P")
+        self.print_action.setShortcutVisibleInContextMenu(True)
+        self.print_action.triggered.connect(self.print_requested)
+        menu.addAction(self.print_action)
+        menu.addSeparator()
         about = QAction("About PDR", menu)
         about.triggered.connect(self.about_requested)
         menu.addAction(about)
@@ -101,6 +112,7 @@ class HeaderBar(QWidget):
         row.addWidget(self.zoom_button)
         row.addWidget(self.zoom_in_button)
         row.addStretch(1)
+        row.addWidget(self.search_button)
         row.addWidget(self.menu_button)
 
         self.document_controls: list[QWidget] = [
@@ -110,6 +122,7 @@ class HeaderBar(QWidget):
             self.zoom_out_button,
             self.zoom_button,
             self.zoom_in_button,
+            self.search_button,
         ]
         self.set_document(None)
 
@@ -137,6 +150,7 @@ class HeaderBar(QWidget):
         has_doc = page_count is not None
         for widget in self.document_controls:
             widget.setVisible(has_doc)
+        self.print_action.setEnabled(has_doc)
         if page_count is not None:
             self.page_field.setValidator(QIntValidator(1, page_count, self.page_field))
             self.page_count.setText(f"/ {page_count}")

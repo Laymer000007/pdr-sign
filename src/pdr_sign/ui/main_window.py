@@ -15,6 +15,7 @@ from PySide6.QtGui import (
     QDropEvent,
     QKeySequence,
 )
+from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
     QFileDialog,
     QMainWindow,
@@ -31,7 +32,8 @@ from pdr_sign.services import settings as settings_service
 from pdr_sign.services.document import Document, DocumentError, PasswordRequired, WrongPassword
 from pdr_sign.services.recent import RecentFiles
 from pdr_sign.services.settings import Settings
-from pdr_sign.ui import dialogs, icons
+from pdr_sign.ui import dialogs, icons, printing
+from pdr_sign.ui.canvas import Canvas
 from pdr_sign.ui.document_tab import DocumentTab
 from pdr_sign.ui.empty_state import EmptyState
 from pdr_sign.ui.header_bar import HeaderBar
@@ -88,6 +90,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self.tabs: list[DocumentTab] = []
+        self._printer: QPrinter | None = None  # kept so printer choices persist
         self._connect()
         self._add_shortcuts()
         self.tokens = tokens
@@ -105,6 +108,8 @@ class MainWindow(QMainWindow):
         h.zoom_out_requested.connect(lambda: self._with_tab(lambda t: t.view.zoom_out()))
         h.zoom_preset_requested.connect(self._zoom_preset)
         h.about_requested.connect(lambda: dialogs.AboutDialog(self).exec())
+        h.search_requested.connect(lambda: self._with_tab(lambda t: t.open_search()))
+        h.print_requested.connect(self.print_current)
         self.empty_state.open_requested.connect(self.browse)
         self.empty_state.recent_requested.connect(lambda p: self.open_paths([p]))
         self.tab_bar.currentChanged.connect(self._on_tab_changed)
@@ -127,6 +132,12 @@ class MainWindow(QMainWindow):
         add(["Ctrl+-"], lambda: self._with_tab(lambda t: t.view.zoom_out()))
         add(["Ctrl+0"], lambda: self._with_tab(self._apply_default_zoom))
         add(["F9"], lambda: self.set_sidebar_visible(not self.settings.show_sidebar))
+        add([QKeySequence.StandardKey.Find], lambda: self._with_tab(lambda t: t.open_search()))
+        add(
+            [QKeySequence.StandardKey.Copy],
+            lambda: self._with_tab(lambda t: t.view.copy_selection()),
+        )
+        add([QKeySequence.StandardKey.Print], self.print_current)
 
     # --- tabs -----------------------------------------------------------------
 
@@ -213,6 +224,7 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(tab)
         self.stack.setCurrentWidget(tab)
         tab.set_sidebar_visible(self.settings.show_sidebar, animate=False)
+        tab.set_tokens(self.tokens)
 
         entry = self.recent.get(doc.path)
         self._apply_zoom_setting(tab, entry.zoom if entry and entry.zoom else None)
@@ -298,6 +310,14 @@ class MainWindow(QMainWindow):
     def _apply_default_zoom(self, tab: DocumentTab) -> None:
         self._apply_zoom_setting(tab, None)
 
+    def print_current(self) -> None:
+        tab = self.current_tab()
+        if tab is None:
+            return
+        if self._printer is None:
+            self._printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printing.run_print_dialog(self, self._printer, tab.doc, tab.view.current_page)
+
     def set_sidebar_visible(self, visible: bool) -> None:
         self.settings.show_sidebar = visible
         for tab in self.tabs:
@@ -320,6 +340,9 @@ class MainWindow(QMainWindow):
         self.tokens = t
         self.header.set_tokens(t)
         self.empty_state.set_tokens(t)
+        Canvas.set_tokens(t)
+        for tab in self.tabs:
+            tab.set_tokens(t)
         for i in range(self.tab_bar.count()):
             button = self.tab_bar.tabButton(i, QTabBar.ButtonPosition.RightSide)
             if isinstance(button, QToolButton):

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from pdr_sign.services.document import Document, OutlineEntry
+from pdr_sign.services.search import SearchHit
 from pdr_sign.ui.render_scheduler import RenderRequest, RenderScheduler
 from pdr_sign.ui.theme import SIDEBAR_WIDTH
 
@@ -178,6 +179,63 @@ class OutlineTree(QStackedWidget):
             self.destination_activated.emit(page, item.data(0, Y_ROLE))
 
 
+class SearchResults(QStackedWidget):
+    """The Search tab: one row per match, in document order."""
+
+    hit_activated = Signal(int)  # index into the controller's hit list
+
+    def __init__(self, doc: Document) -> None:
+        super().__init__()
+        self.doc = doc
+        self.list = QListWidget()
+        self.list.setObjectName("SearchResults")
+        self.list.setAccessibleName("Search results")
+        self.list.setFrameShape(QFrame.Shape.NoFrame)
+        self.list.setWordWrap(True)
+        self.list.setUniformItemSizes(False)
+        self.list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.empty = QLabel("Press Ctrl+F to search this document")
+        self.empty.setObjectName("Muted")
+        self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty.setWordWrap(True)
+        self.addWidget(self.list)
+        self.addWidget(self.empty)
+        self.setCurrentWidget(self.empty)
+        self.list.itemClicked.connect(lambda it: self.hit_activated.emit(self.list.row(it)))
+        self.list.itemActivated.connect(lambda it: self.hit_activated.emit(self.list.row(it)))
+
+    def set_hits(self, hits: list[SearchHit], query: str, running: bool) -> None:
+        """Rebuild the list. Called as results stream in, so keep it cheap."""
+        self.list.setUpdatesEnabled(False)
+        self.list.clear()
+        for hit in hits:
+            label = self.doc.pages[hit.page].label
+            item = QListWidgetItem(f"Page {label}\n{hit.snippet}")
+            item.setToolTip(hit.snippet)
+            self.list.addItem(item)
+        self.list.setUpdatesEnabled(True)
+        if hits:
+            self.setCurrentWidget(self.list)
+        else:
+            self.empty.setText(
+                "Searching…"
+                if running
+                else (
+                    f"No matches for “{query}”" if query else "Press Ctrl+F to search this document"
+                )
+            )
+            self.setCurrentWidget(self.empty)
+
+    def set_current(self, index: int) -> None:
+        if 0 <= index < self.list.count():
+            self.list.blockSignals(True)
+            self.list.setCurrentRow(index)
+            self.list.blockSignals(False)
+            item = self.list.item(index)
+            if item is not None:
+                self.list.scrollToItem(item)
+
+
 class Sidebar(QWidget):
     def __init__(self, doc: Document, scheduler: RenderScheduler) -> None:
         super().__init__()
@@ -185,10 +243,15 @@ class Sidebar(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.thumbnails = ThumbnailList(doc, scheduler)
         self.outline = OutlineTree(doc.outline())
+        self.search = SearchResults(doc)
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
+        self.tabs.setObjectName("SidebarTabs")
+        self.tabs.tabBar().setUsesScrollButtons(False)
+        self.tabs.tabBar().setExpanding(True)
         self.tabs.addTab(self.thumbnails, "Thumbnails")
         self.tabs.addTab(self.outline, "Outline")
+        self.tabs.addTab(self.search, "Search")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.tabs)

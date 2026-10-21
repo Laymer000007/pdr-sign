@@ -6,7 +6,7 @@ PDR is a calm, content-first PDF viewer: continuous scrolling, thumbnails, outli
 search, printing, and a Fill & Sign panel for filling forms, ticking boxes and placing
 your signature, all without leaving the document.
 
-> Status: early development. The viewer works (Phase 1); Fill & Sign is in progress.
+> Status: early development. Viewing, search, text selection and printing work; Fill & Sign is next.
 
 ## Run from source
 

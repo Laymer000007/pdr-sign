@@ -31,6 +31,11 @@ class InstanceServer(QObject):
         self._notifier: QSocketNotifier | None = None
 
     def start(self) -> bool:
+        try:
+            # Older snapd releases don't always create the snap's private runtime dir.
+            self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        except OSError:
+            return False
         with contextlib.suppress(FileNotFoundError):
             self.path.unlink()  # stale: send_to_running already found nobody listening
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

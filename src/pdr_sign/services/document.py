@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import itertools
 import threading
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
 import pymupdf
+
+from pdr_sign.services.text import Word
 
 MUPDF_LOCK = threading.RLock()
 
@@ -19,6 +22,7 @@ MUPDF_LOCK = threading.RLock()
 pymupdf.TOOLS.mupdf_display_errors(False)
 
 _doc_ids = itertools.count(1)
+WORD_CACHE_PAGES = 64
 
 Rect = tuple[float, float, float, float]
 
@@ -81,6 +85,7 @@ class Document:
             self.pages: list[PageInfo] = [self._page_info(i) for i in range(doc.page_count)]
             self.title = (doc.metadata or {}).get("title") or ""
             self.is_encrypted = bool(doc.is_encrypted or password)
+        self._words: OrderedDict[int, list[Word]] = OrderedDict()
 
     # --- lifecycle -----------------------------------------------------------
 
@@ -170,6 +175,37 @@ class Document:
         if not isinstance(to, pymupdf.Point):
             return None
         return max(0.0, min(float(to.y), self.pages[index].height))
+
+    # --- text ----------------------------------------------------------------
+
+    def words(self, index: int) -> list[Word]:
+        """Words on page ``index`` in reading order, in visible coordinates (cached)."""
+        with MUPDF_LOCK:
+            cached = self._words.get(index)
+            if cached is not None:
+                self._words.move_to_end(index)
+                return cached
+            page = self._doc[index]
+            matrix = page.rotation_matrix
+            words = []
+            for x0, y0, x1, y1, text, block, line, _ in page.get_text("words", sort=False):
+                r = pymupdf.Rect(x0, y0, x1, y1) * matrix  # words come unrotated
+                words.append(Word((r.x0, r.y0, r.x1, r.y1), text, block, line))
+            self._words[index] = words
+            if len(self._words) > WORD_CACHE_PAGES:
+                self._words.popitem(last=False)
+            return words
+
+    def find(self, index: int, query: str) -> list[Rect]:
+        """Case-insensitive matches of ``query`` on a page, in visible coordinates.
+
+        A match that wraps onto a second line yields one rect per line.
+        """
+        with MUPDF_LOCK:
+            page = self._doc[index]
+            matrix = page.rotation_matrix
+            hits = page.search_for(query)
+        return [(r.x0, r.y0, r.x1, r.y1) for r in (h * matrix for h in hits)]
 
     # --- rendering -----------------------------------------------------------
 
