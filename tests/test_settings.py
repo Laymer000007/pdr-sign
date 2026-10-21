@@ -1,0 +1,47 @@
+import json
+from pathlib import Path
+
+import pytest
+
+from pdr_sign.services import settings as s
+
+
+def test_defaults_when_missing(tmp_path: Path) -> None:
+    assert s.load(tmp_path / "nope.json") == s.Settings()
+
+
+def test_round_trip(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    value = s.Settings(theme="dark", default_zoom="fit-page", open_links_without_asking=True)
+    s.save(value, path)
+    assert s.load(path) == value
+    assert not list(tmp_path.glob(".settings-*")), "temp file left behind"
+
+
+def test_corrupt_file_falls_back(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text("{not json")
+    assert s.load(path) == s.Settings()
+
+
+def test_invalid_values_are_ignored(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"theme": "neon", "default_zoom": 7, "license_key": 5, "extra": 1}))
+    assert s.load(path) == s.Settings()
+
+
+def test_license_key_is_reserved(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    s.save(s.Settings(license_key="abc"), path)
+    assert s.load(path).license_key == "abc"
+
+
+def test_default_paths_follow_xdg(tmp_path: Path) -> None:
+    assert s.settings_path() == tmp_path / "config" / "pdr-sign" / "settings.json"
+    assert s.data_dir() == tmp_path / "data" / "pdr-sign"
+
+
+def test_snap_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SNAP_USER_DATA", str(tmp_path / "snap"))
+    assert s.config_dir() == tmp_path / "snap" / "config"
+    assert s.data_dir() == tmp_path / "snap"

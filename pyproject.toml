@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pdr-sign"
+dynamic = ["version"]
+description = "Fast PDF reader with Fill & Sign"
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+requires-python = ">=3.12,<3.13"
+authors = [{ name = "PDR contributors" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: X11 Applications :: Qt",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Office/Business",
+]
+dependencies = [
+  "PySide6-Essentials==6.12.0",
+  "PyMuPDF==2.0",
+  "Pillow==12.3.0",
+]
+
+[project.optional-dependencies]
+# Phase 7 only (certificate signatures). Do not install earlier.
+sign = ["pyHanko==0.38.0"]
+dev = [
+  "pytest==9.1.1",
+  "pytest-qt==4.5.0",
+  "ruff==0.17.1",
+  "mypy==2.4.0",
+  "pyinstaller==6.22.3",
+]
+
+[project.scripts]
+pdr-sign = "pdr_sign.__main__:main"
+
+[tool.hatch.version]
+path = "src/pdr_sign/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pdr_sign"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
+# The en dash is part of the locked display name "PDR – Portable Document Read and Sign".
+allowed-confusables = ["–"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["N802"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+packages = ["pdr_sign"]
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["pymupdf", "pymupdf.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: long-running performance tests (deselect with -m 'not slow')"]
+qt_api = "pyside6"
+addopts = "-ra"

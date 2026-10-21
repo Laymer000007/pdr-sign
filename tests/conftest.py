@@ -1,0 +1,64 @@
+"""Shared fixtures. Sample PDFs are generated with PyMuPDF, never checked in."""
+
+from __future__ import annotations
+
+import os
+from collections.abc import Iterator
+from pathlib import Path
+
+import pymupdf
+import pytest
+
+# Headless by default; CI may override with xvfb (QT_QPA_PLATFORM=xcb).
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+ENCRYPTED_PASSWORD = "pdr-test"
+
+
+def make_text_pdf(path: Path, pages: int) -> Path:
+    doc = pymupdf.open()
+    for n in range(1, pages + 1):
+        page = doc.new_page(width=595, height=842)  # A4 in points
+        page.insert_text((72, 72), f"Page {n}", fontsize=24)
+        page.insert_textbox(
+            pymupdf.Rect(72, 110, 523, 770),
+            "The quick brown fox jumps over the lazy dog. " * 30,
+            fontsize=11,
+        )
+    doc.save(path)
+    doc.close()
+    return path
+
+
+@pytest.fixture(autouse=True)
+def isolated_user_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Keep tests away from the real ~/.config and ~/.local/share."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.delenv("SNAP_USER_DATA", raising=False)
+    yield
+
+
+@pytest.fixture
+def text_pdf(tmp_path: Path) -> Path:
+    return make_text_pdf(tmp_path / "three-pages.pdf", 3)
+
+
+@pytest.fixture(scope="session")
+def long_pdf(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return make_text_pdf(tmp_path_factory.mktemp("long") / "five-hundred.pdf", 500)
+
+
+@pytest.fixture
+def encrypted_pdf(tmp_path: Path) -> Path:
+    src = make_text_pdf(tmp_path / "plain.pdf", 1)
+    doc = pymupdf.open(src)
+    out = tmp_path / "encrypted.pdf"
+    doc.save(
+        out,
+        encryption=pymupdf.PDF_ENCRYPT_AES_256,
+        owner_pw=ENCRYPTED_PASSWORD + "-owner",
+        user_pw=ENCRYPTED_PASSWORD,
+    )
+    doc.close()
+    return out

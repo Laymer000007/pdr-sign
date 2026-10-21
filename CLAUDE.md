@@ -1,0 +1,39 @@
+# PDR – Portable Document Read and Sign
+
+The spec is `BUILD_PROMPT.md`. Choices it doesn't cover are logged in `docs/DECISIONS.md`;
+add a new entry whenever you make one.
+
+## Commands
+
+```bash
+# one-time setup (uv lives in ~/.local/bin)
+uv venv --python 3.12 .venv && uv pip install --python .venv -e ".[dev]"
+
+.venv/bin/python -m pdr_sign [file.pdf]       # run
+.venv/bin/ruff check . && .venv/bin/ruff format --check .
+.venv/bin/mypy                                 # strict, config in pyproject.toml
+.venv/bin/pytest -m "not slow"                 # fast suite
+.venv/bin/pytest                               # everything, including slow perf tests
+QT_QPA_PLATFORM=offscreen .venv/bin/pytest     # headless (CI uses xvfb-run)
+```
+
+## Conventions
+
+- Work in phases (spec section 9). Each phase ends with tests, ruff and mypy all green, a
+  launch check, and exactly one commit. Stop and summarise after each phase.
+- Never use the competitor brand/product names listed in `BUILD_PROMPT.md` §0, or
+  look-alike icons or colours, anywhere. `tests/test_architecture.py` checks for them.
+- Ask before adding any dependency not in spec section 2. Pins are exact, in `pyproject.toml`.
+- `src/pdr_sign/services/` must never import PySide6. `tests/test_architecture.py`
+  enforces this. UI and services talk only through plain dataclasses.
+- Type hints everywhere (mypy strict). Small modules, no file over ~400 lines.
+- Use `import pymupdf`, never `fitz`.
+- Colours come only from tokens in `ui/theme.py`. The QSS is generated from them, so
+  never hard-code a colour in a widget. Accent is reserved for the primary action,
+  selection, focus rings and the active tool.
+- Icons are Lucide SVGs in `resources/icons/`, loaded via `ui/icons.py` (recoloured at
+  runtime). Every icon button needs a tooltip and an accessible name.
+- `pdr_sign.OWNER` is `Laymer000007`, so the app ID is `io.github.Laymer000007.PdrSign` and
+  `SOURCE_URL` is https://github.com/Laymer000007/pdr-sign. Packaging file names and
+  contents must use the same app ID; no `OWNER` placeholders remain.
+- Do not build licensing or payment code. `Settings.license_key` is only a reserved field.
