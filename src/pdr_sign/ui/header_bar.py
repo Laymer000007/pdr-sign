@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
-    QPushButton,
     QToolButton,
     QWidget,
 )
@@ -47,6 +46,7 @@ class HeaderBar(QWidget):
     about_requested = Signal()
     search_requested = Signal()
     fill_toggled = Signal(bool)
+    save_requested = Signal()
     print_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -63,6 +63,13 @@ class HeaderBar(QWidget):
         self.sidebar_button.toggled.connect(self.sidebar_toggled)
         self.print_button = self._add_icon(icon_button("printer", "Print", "Ctrl+P"))
         self.print_button.clicked.connect(self.print_requested)
+        self.fill_button = self._add_icon(icon_button("signature", "Fill & Sign", "Ctrl+E"))
+        self.fill_button.setObjectName("FillToggle")
+        self.fill_button.setCheckable(True)
+        self.fill_button.toggled.connect(self.fill_toggled)
+        self.save_button = self._add_icon(icon_button("save", "Save", "Ctrl+S"))
+        self.save_button.clicked.connect(self.save_requested)
+        self.save_button.setEnabled(False)  # wired up in Phase 5
 
         self.page_field = QLineEdit()
         self.page_field.setObjectName("PageField")
@@ -89,15 +96,6 @@ class HeaderBar(QWidget):
         self.search_button = self._add_icon(icon_button("search", "Search", "Ctrl+F"))
         self.search_button.clicked.connect(self.search_requested)
 
-        self.fill_button = QPushButton("Fill && Sign")  # "&&": a single & would mark a mnemonic
-        self.fill_button.setObjectName("FillSignPill")
-        self.fill_button.setProperty("primary", True)
-        self.fill_button.setCheckable(True)
-        self.fill_button.setAccessibleName("Fill & Sign")
-        self.fill_button.setToolTip("Fill & Sign (Ctrl+E)")
-        self.fill_button.setFocusPolicy(Qt.FocusPolicy.TabFocus)
-        self.fill_button.toggled.connect(self.fill_toggled)
-
         self.menu_button = self._add_icon(icon_button("ellipsis-vertical", "Main menu"))
         self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(self.menu_button)
@@ -121,6 +119,8 @@ class HeaderBar(QWidget):
         row.addWidget(self.open_button)
         row.addWidget(self.sidebar_button)
         row.addWidget(self.print_button)
+        row.addWidget(self.fill_button)
+        row.addWidget(self.save_button)
         row.addStretch(1)
         row.addWidget(self.page_field)
         row.addWidget(self.page_count)
@@ -130,9 +130,6 @@ class HeaderBar(QWidget):
         row.addWidget(self.zoom_in_button)
         row.addStretch(1)
         row.addWidget(self.search_button)
-        row.addSpacing(SPACING // 2)
-        row.addWidget(self.fill_button)
-        row.addSpacing(SPACING // 2)
         row.addWidget(self.menu_button)
 
         self.document_controls: list[QWidget] = [
@@ -143,7 +140,6 @@ class HeaderBar(QWidget):
             self.zoom_button,
             self.zoom_in_button,
             self.search_button,
-            self.fill_button,
         ]
         self.set_document(None)
 
@@ -165,8 +161,9 @@ class HeaderBar(QWidget):
     def set_tokens(self, t: Tokens) -> None:
         dim = disabled_color(t)
         for button in self._icon_buttons:
-            button.setIcon(icons.icon(str(button.property("iconName")), t.text, disabled=dim))
-        self.fill_button.setIcon(icons.icon("pen-line", t.on_accent, 16))
+            on = t.on_accent if button.isCheckable() and button is self.fill_button else None
+            name = str(button.property("iconName"))
+            button.setIcon(icons.icon(name, t.text, disabled=dim, on=on))
 
     def set_document(self, page_count: int | None) -> None:
         """Enable the document controls, or disable them when nothing is open."""
@@ -175,6 +172,7 @@ class HeaderBar(QWidget):
             widget.setVisible(has_doc)
         self.print_action.setEnabled(has_doc)
         self.print_button.setEnabled(has_doc)
+        self.fill_button.setEnabled(has_doc)
         if page_count is not None:
             self.page_field.setValidator(QIntValidator(1, page_count, self.page_field))
             self.page_count.setText(f"/ {page_count}")

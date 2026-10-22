@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -32,7 +32,7 @@ from pdr_sign.ui.theme import LIGHT, PANEL_WIDTH, SPACING, Tokens
 # (tool, label, icon, shortcut hint)
 TOOL_BUTTONS = (
     ("text", "Text", "type", "Click on the page to type"),
-    ("check", "Checkmark", "check", "Click to place a tick"),
+    ("check", "Check", "check", "Check: click to place a check mark"),
     ("cross", "Cross", "x", "Click to place a cross"),
     ("dot", "Dot", "dot", "Click to place a dot"),
     ("line", "Line", "minus", "Line"),
@@ -41,6 +41,10 @@ TOOL_BUTTONS = (
     ("signature", "Signature", "signature", "Place your signature"),
 )
 IMAGE_TOOLS = ("initials", "signature")
+TILE_COLUMNS = 3
+TILE_GAP = SPACING // 2
+# Three equal tiles across the panel's content width (panel minus 2 x 16 px padding).
+TILE = QSize((PANEL_WIDTH - 4 * SPACING - (TILE_COLUMNS - 1) * TILE_GAP) // TILE_COLUMNS, 60)
 NAME_ROLE = Qt.ItemDataRole.UserRole
 
 
@@ -63,7 +67,7 @@ class FillSignPanel(QWidget):
         title.setObjectName("PanelTitle")
 
         tools = QGridLayout()
-        tools.setSpacing(SPACING // 2)
+        tools.setSpacing(TILE_GAP)
         self.group = QButtonGroup(self)
         self.group.setExclusive(False)  # so the active tool can be clicked off again
         for n, (tool, label, icon_name, hint) in enumerate(TOOL_BUTTONS):
@@ -75,11 +79,11 @@ class FillSignPanel(QWidget):
             button.setCheckable(True)
             button.setAccessibleName(f"{label} tool")
             button.setToolTip(hint)
-            button.setMinimumSize(76, 56)
+            button.setFixedSize(TILE)  # identical tiles whatever the label length
             button.clicked.connect(lambda checked, t=tool: self._on_tool(t, checked))
             self.group.addButton(button)
             self._buttons[tool] = button
-            tools.addWidget(button, n // 3, n % 3)
+            tools.addWidget(button, n // TILE_COLUMNS, n % TILE_COLUMNS)
 
         style_label = QLabel("Text")
         style_label.setObjectName("SectionTitle")

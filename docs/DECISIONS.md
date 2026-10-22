@@ -215,3 +215,15 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   search and photo cleanup now run through `Runner`: workers put results on a
   `queue.SimpleQueue`, and the UI thread drains it on an 8 ms timer that runs only
   while jobs are outstanding. Five full xcb runs after the change: no hangs.
+
+## UI polish (before Phase 5)
+
+- **Header, left to right:** Open, Sidebar, Print, Fill & Sign, Save. Fill & Sign is
+  now a quiet icon toggle (Lucide "signature") that turns accent while the panel is
+  open; the old pill is gone. Save (Lucide "save") stays disabled until Phase 5.
+  Print, Fill & Sign and Save remain visible but disabled with no document open.
+- **Tool tiles** are a fixed 80×60 px, three per row, so long labels don't stretch
+  them. "Checkmark" is now "Check".
+- **`paper`, `paper_border` and `paper_muted` tokens** (the same in both themes) cover
+  every surface that shows ink outside a page: saved signature tiles, the draw pad and
+  the upload checkerboard. Black and blue ink are both ≥ 4.5:1 on paper (tested).

@@ -79,3 +79,13 @@ def test_disabled_icons_are_dimmer_than_text(t: Tokens) -> None:
     dim = theme.disabled_color(t)
     assert contrast_ratio(dim, t.window) < contrast_ratio(t.text, t.window) / 2
     assert contrast_ratio(dim, t.window) > 1.5  # still visible
+
+
+def test_ink_is_readable_on_paper_tiles() -> None:
+    from pdr_sign.services import sigimage
+
+    for ink in sigimage.INK_COLORS.values():
+        hex_ink = "#{:02X}{:02X}{:02X}".format(*ink)
+        for t in (LIGHT, DARK):
+            assert contrast_ratio(hex_ink, t.paper) >= 4.5, (hex_ink, t.scheme)
+    assert LIGHT.paper == DARK.paper  # the same light tile in both themes

@@ -11,7 +11,7 @@ from pdr_sign.ui import icons
 from pdr_sign.ui.signature_library import LibraryItem
 from pdr_sign.ui.theme import SPACING, Tokens
 
-THUMB = QSize(68, 30)
+THUMB = QSize(64, 28)
 COLUMNS = 3
 
 
@@ -28,6 +28,8 @@ class SavedStrip(QWidget):
         self.title.setObjectName("SectionTitle")
         self.grid = QGridLayout()
         self.grid.setSpacing(SPACING // 2)
+        # Fixed-size tiles packed from the left, so rows line up whatever their count.
+        self.grid.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.add_button = QToolButton()
         self.add_button.setObjectName("SavedAdd")
         self.add_button.setToolTip(f"New {kind}…")

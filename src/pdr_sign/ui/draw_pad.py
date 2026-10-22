@@ -30,7 +30,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from pdr_sign.services import sigimage
-from pdr_sign.ui.theme import LIGHT as PAPER
+from pdr_sign.ui.theme import LIGHT
 
 CANVAS_W, CANVAS_H = 1000.0, 400.0
 LAZY_RADIUS = 5.0  # canvas units the pen trails behind the pointer
@@ -86,7 +86,7 @@ class DrawPad(QWidget):
         self.strokes: list[Stroke] = []
         self.pen_width = PEN_WIDTHS["medium"]
         self.ink = QColor(*sigimage.INK_COLORS["black"])
-        self.guide = QColor(PAPER.muted)
+        self.guide = QColor(LIGHT.paper_muted)
         self._current: Stroke | None = None
         self._brush = QPointF()
         self._last_time = 0
@@ -240,8 +240,8 @@ class DrawPad(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = self._canvas_rect()
         # Paper in both themes: the ink is black or blue, like the pages it lands on.
-        painter.setPen(QPen(QColor(PAPER.border), 1))
-        painter.setBrush(QColor(PAPER.surface))
+        painter.setPen(QPen(QColor(LIGHT.paper_border), 1))
+        painter.setBrush(QColor(LIGHT.paper))
         painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 8, 8)
         # A baseline and a hint, like the line on a paper form.
         y = rect.top() + rect.height() * 0.72

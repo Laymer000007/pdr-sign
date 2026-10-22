@@ -45,6 +45,11 @@ class Tokens:
     # to cover the PDF's own (possibly stale) field appearance underneath.
     field_fill: str = "#E8EEFB"
     field_border: str = "#9AA8D6"
+    # Paper: where black/blue ink is shown outside a page (draw pad, upload preview,
+    # saved signature tiles). Light in both themes so dark ink stays readable.
+    paper: str = "#FFFFFF"
+    paper_border: str = "#E3E3E3"
+    paper_muted: str = "#6B6B6B"
 
 
 LIGHT = Tokens(
@@ -299,14 +304,21 @@ QTreeWidget::item:selected {{ background: {t.hover}; color: {t.text}; }}
 #SearchResults::item {{ padding: 6px 8px; border-radius: 4px; }}
 #SearchResults::item:selected {{ background: {t.hover}; color: {t.text}; }}
 
-#FillSignPill {{ padding: 6px 14px; }}
-#FillSignPill:checked {{ background: {t.text}; border-color: {t.text}; color: {t.window}; }}
+#FillToggle:checked, #FillToggle:checked:hover {{
+    background: {t.accent}; border-color: {t.accent};
+}}
 #FillSignPanel {{ background: {t.window}; }}
 #PanelTitle {{ font-size: 15px; font-weight: 600; }}
 #ToolButton {{
     background: {t.surface}; border: 1px solid {t.border}; border-radius: {r}px;
-    padding: 6px 4px; color: {t.text};
+    padding: 4px 2px; color: {t.text};
 }}
+#SavedSignature {{
+    background: {t.paper}; border: 1px solid {t.paper_border}; border-radius: {r}px;
+    padding: 4px;
+}}
+#SavedSignature:hover {{ border-color: {t.accent}; }}
+#SavedAdd {{ border: 1px dashed {t.border}; border-radius: {r}px; }}
 #ToolButton:hover {{ background: {t.hover}; }}
 #ToolButton:checked {{ background: {t.accent}; border-color: {t.accent}; color: {t.on_accent}; }}
 #Stepper {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: {r}px; }}

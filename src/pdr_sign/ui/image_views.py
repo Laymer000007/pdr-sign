@@ -16,7 +16,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
-from pdr_sign.ui.theme import LIGHT as PAPER
+from pdr_sign.ui.theme import LIGHT
 
 
 def checkerboard(
@@ -144,7 +144,7 @@ class ResultView(QWidget):
         painter = QPainter(self)
         area = QRectF(self.rect()).adjusted(4, 4, -4, -4)
         # A light checkerboard in both themes, so black ink stays visible on it.
-        checkerboard(painter, area, QColor(PAPER.surface), QColor(PAPER.border))
+        checkerboard(painter, area, QColor(LIGHT.paper), QColor(LIGHT.paper_border))
         if not self.pixmap.isNull():
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
             painter.drawPixmap(
