@@ -111,3 +111,20 @@ def test_plain_pdf_has_no_fields(text_pdf: Path) -> None:
     assert forms.list_fields(doc) == []
     assert not forms.has_xfa(doc)
     doc.close()
+
+
+def test_list_box_appearance_shows_the_choice(form_pdf: Path, tmp_path: Path) -> None:
+    """MuPDF draws list boxes empty; flattening (and appearance-based viewers) would
+    lose the selection. Our appearance lists the options with the choice highlighted."""
+    doc = Document.open(form_pdf)
+    forms.apply_values(doc, {"fruit": ("plum",)})
+    with doc.locked() as pdf:
+        pdf.bake()
+        page = pdf[0]
+        text = page.get_textbox(pymupdf.Rect(72, 260, 250, 320))
+        fills = [d["rect"] for d in page.get_drawings() if d.get("fill")]
+        plum = next(w for w in page.get_text("words") if w[4] == "plum")
+    assert text.split() == ["apple", "pear", "plum"]
+    centre = pymupdf.Point((plum[0] + plum[2]) / 2, (plum[1] + plum[3]) / 2)
+    assert any(r.contains(centre) and r.height < 20 for r in fills)  # a band behind "plum"
+    doc.close()

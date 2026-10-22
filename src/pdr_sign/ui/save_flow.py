@@ -1,0 +1,136 @@
+"""Save, Save As and Save flattened copy, as the user experiences them.
+
+Decides *where* and *whether* to write (signed documents, read-only files, cancel),
+runs the pipeline in ``services/saving.py``, reports problems clearly, and reloads the
+tab from the written file so what you see is exactly what was saved.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
+
+from pdr_sign.services import saving
+from pdr_sign.services.saving import SaveRequest
+from pdr_sign.ui import dialogs
+
+if TYPE_CHECKING:
+    from pdr_sign.ui.document_tab import DocumentTab
+    from pdr_sign.ui.main_window import MainWindow
+
+
+def flush_edits(tab: DocumentTab) -> None:
+    """Commit whatever is still being typed (a field or a text box) to the model."""
+    focused = tab.view.scene().focusItem()
+    if focused is not None:
+        focused.clearFocus()
+    if tab.view.field_layer is not None:
+        tab.view.field_layer.commit_pending()
+
+
+def request_for(tab: DocumentTab, flatten: bool = False) -> SaveRequest:
+    values, items = tab.model.save_request()
+    return SaveRequest(values=values, items=items, flatten=flatten)
+
+
+def _write(window: MainWindow, tab: DocumentTab, target: Path, flatten: bool) -> bool:
+    QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+    try:
+        saving.save(tab.doc, target, request_for(tab, flatten))
+    except saving.SaveError as exc:
+        QApplication.restoreOverrideCursor()
+        dialogs.show_error(window, "Couldn't save", f"{exc}\n\nYour original file was not changed.")
+        return False
+    QApplication.restoreOverrideCursor()
+    return True
+
+
+def save(window: MainWindow, tab: DocumentTab, reload: bool = True) -> bool:
+    """Ctrl+S. True when the document ends up saved (or had nothing to save).
+
+    ``reload=False`` when the tab is about to close anyway.
+    """
+    flush_edits(tab)
+    if not tab.model.dirty:
+        return True
+    if tab.signed:
+        choice = dialogs.confirm_signed(window)
+        if choice == "cancel":
+            return False
+        if choice == "save_as":
+            return save_as(window, tab)
+    path = tab.doc.path
+    if not saving.can_write_in_place(path):
+        # Read-only file or folder: offer a copy instead of failing.
+        return save_as(window, tab, note="This file can't be changed here. Save a copy:")
+    if not _write(window, tab, path, flatten=False):
+        return False
+    if reload:
+        window.reload_tab(tab, path)
+        window.toast("Saved")
+    return True
+
+
+def suggested_folder(path: Path) -> Path:
+    """Where Save As starts: next to the original, unless that folder is read-only."""
+    return path.parent if os.access(path.parent, os.W_OK) else Path.home()
+
+
+def save_as(window: MainWindow, tab: DocumentTab, note: str = "") -> bool:
+    """Ctrl+Shift+S: write to a new file and switch the tab to it."""
+    flush_edits(tab)
+    title = note or "Save As"
+    target = dialogs.ask_save_path(
+        window, title, suggested_folder(tab.doc.path) / tab.doc.path.name
+    )
+    if target is None:
+        return False
+    if target.resolve() == tab.doc.path.resolve() and not saving.can_write_in_place(target):
+        dialogs.show_error(
+            window, "Couldn't save", "That file can't be changed. Choose another name or folder."
+        )
+        return False
+    if not _write(window, tab, target, flatten=False):
+        return False
+    window.reload_tab(tab, target)
+    window.toast(f"Saved as {target.name}")
+    return True
+
+
+def save_flattened_copy(window: MainWindow, tab: DocumentTab) -> bool:
+    """A copy with everything baked into the pages: no fillable fields, nothing editable.
+    The open document stays as it is (and keeps its unsaved changes)."""
+    flush_edits(tab)
+    stem = tab.doc.path.stem
+    suggested = suggested_folder(tab.doc.path) / f"{stem}-flattened.pdf"
+    target = dialogs.ask_save_path(window, "Save flattened copy", suggested)
+    if target is None:
+        return False
+    if target.resolve() == tab.doc.path.resolve():
+        dialogs.show_error(
+            window,
+            "Choose another name",
+            "A flattened copy can't replace the open document. Pick a different file name.",
+        )
+        return False
+    if not _write(window, tab, target, flatten=True):
+        return False
+    window.toast(f"Flattened copy saved: {target.name}")
+    return True
+
+
+def confirm_close(window: MainWindow, tab: DocumentTab) -> bool:
+    """Before closing a tab: True if it may close (saved, discarded or clean)."""
+    flush_edits(tab)
+    if not tab.model.dirty:
+        return True
+    answer = dialogs.ask_unsaved(window, tab.doc.path.name)
+    if answer == "cancel":
+        return False
+    if answer == "discard":
+        return True
+    return save(window, tab, reload=False)

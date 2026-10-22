@@ -47,6 +47,9 @@ class HeaderBar(QWidget):
     search_requested = Signal()
     fill_toggled = Signal(bool)
     save_requested = Signal()
+    save_as_requested = Signal()
+    flatten_requested = Signal()
+    settings_requested = Signal()
     print_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -69,7 +72,7 @@ class HeaderBar(QWidget):
         self.fill_button.toggled.connect(self.fill_toggled)
         self.save_button = self._add_icon(icon_button("save", "Save", "Ctrl+S"))
         self.save_button.clicked.connect(self.save_requested)
-        self.save_button.setEnabled(False)  # wired up in Phase 5
+        self.save_button.setEnabled(False)  # only with unsaved changes (set_save_enabled)
 
         self.page_field = QLineEdit()
         self.page_field.setObjectName("PageField")
@@ -106,8 +109,15 @@ class HeaderBar(QWidget):
         self.print_action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
         self.print_action.setShortcutVisibleInContextMenu(True)
         self.print_action.triggered.connect(self.print_requested)
+        self.save_as_action = menu.addAction("Save As…")
+        self.save_as_action.triggered.connect(self.save_as_requested)
+        self.flatten_action = menu.addAction("Save flattened copy…")
+        self.flatten_action.setToolTip("A copy with everything baked in: no fillable fields")
+        self.flatten_action.triggered.connect(self.flatten_requested)
         menu.addAction(self.print_action)
         menu.addSeparator()
+        settings = menu.addAction("Settings…")
+        settings.triggered.connect(self.settings_requested)
         about = QAction("About PDR", menu)
         about.triggered.connect(self.about_requested)
         menu.addAction(about)
@@ -173,6 +183,10 @@ class HeaderBar(QWidget):
         self.print_action.setEnabled(has_doc)
         self.print_button.setEnabled(has_doc)
         self.fill_button.setEnabled(has_doc)
+        self.save_as_action.setEnabled(has_doc)
+        self.flatten_action.setEnabled(has_doc)
+        if not has_doc:
+            self.save_button.setEnabled(False)
         if page_count is not None:
             self.page_field.setValidator(QIntValidator(1, page_count, self.page_field))
             self.page_count.setText(f"/ {page_count}")
@@ -183,6 +197,9 @@ class HeaderBar(QWidget):
 
     def set_zoom(self, zoom: float, mode: str) -> None:
         self.zoom_button.setText(zoom_label(zoom, mode))
+
+    def set_save_enabled(self, dirty: bool) -> None:
+        self.save_button.setEnabled(dirty)
 
     def set_fill_checked(self, checked: bool) -> None:
         self.fill_button.blockSignals(True)

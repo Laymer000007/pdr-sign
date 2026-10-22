@@ -57,6 +57,7 @@ class FillSignPanel(QWidget):
     field_activated = Signal(str)  # field name
     sign_requested = Signal(str)  # "signature" / "initials": arm the latest or create one
     done = Signal()
+    flatten_requested = Signal()
 
     def __init__(self, fields: list[FieldInfo], parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -176,7 +177,13 @@ class FillSignPanel(QWidget):
         outer.addWidget(self.content_scroll, 1)
         done_row = QHBoxLayout()
         done_row.setContentsMargins(SPACING * 2, 0, SPACING * 2, 0)
-        done_row.addWidget(self.done_button)
+        self.flatten_button = QPushButton("Flatten…")
+        self.flatten_button.setToolTip(
+            "Save a flattened copy: everything baked in, nothing editable"
+        )
+        self.flatten_button.clicked.connect(self.flatten_requested)
+        done_row.addWidget(self.flatten_button)
+        done_row.addWidget(self.done_button, 1)
         outer.addLayout(done_row)
 
     # --- state in -----------------------------------------------------------------

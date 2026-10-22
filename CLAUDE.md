@@ -43,6 +43,8 @@ Check them in Firefox or in `tools/pdfjs-check/viewer.html` (same engine).
 - Scene/item coordinates in the canvas are PDF points in visible (rotated) orientation.
   `get_links()` already returns visible coordinates; `search_for()` does not (apply
   `page.rotation_matrix`).
+- Saving goes through `services/saving.py` only: it works on a copy, verifies by reopening, and
+  replaces atomically. Never save the live `Document` in place.
 - Background work goes through `ui.worker.Runner`. Never emit Qt signals or touch Qt
   objects from a worker thread (GIL / Qt-mutex deadlock); post results instead.
 - Never connect a signal that carries an int straight to `QTimer.start`; the int becomes

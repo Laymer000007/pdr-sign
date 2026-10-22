@@ -74,6 +74,17 @@ class FillModel(QObject):
     def dirty(self) -> bool:
         return not self.undo_stack.isClean()
 
+    def load(self, items: list[OverlayItem]) -> None:
+        """Items reopened from the file: the starting state, not undoable changes."""
+        for item in items:
+            self._add(item)
+        self.undo_stack.clear()
+        self.undo_stack.setClean()
+
+    def save_request(self) -> tuple[dict[str, FieldValue], list[OverlayItem]]:
+        """What Save writes: changed field values and every current item."""
+        return self.changed_values(), list(self.items.values())
+
     def changed_values(self) -> dict[str, FieldValue]:
         return {k: v for k, v in self.values.items() if self.initial_values.get(k) != v}
 

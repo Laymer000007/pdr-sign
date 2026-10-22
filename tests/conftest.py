@@ -199,6 +199,36 @@ def form_pdf(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def signed_pdf(tmp_path: Path) -> Path:
+    """The form with its signature field signed (structurally: /V is a /Sig dict)."""
+    path = make_form_pdf(tmp_path / "unsigned.pdf")
+    doc = pymupdf.open(path)
+    sig = doc.get_new_xref()
+    doc.update_object(
+        sig,
+        "<< /Type /Sig /Filter /PDR.Test /SubFilter /adbe.pkcs7.detached "
+        "/ByteRange [0 0 0 0] /Contents <00> /M (D:20261022000000Z) >>",
+    )
+    for widget in doc[1].widgets():
+        if widget.field_name == "signature":
+            doc.xref_set_key(widget.xref, "V", f"{sig} 0 R")
+    doc.save(tmp_path / "signed.pdf")
+    return tmp_path / "signed.pdf"
+
+
+@pytest.fixture
+def xfa_pdf(tmp_path: Path) -> Path:
+    path = make_form_pdf(tmp_path / "plain-form.pdf")
+    doc = pymupdf.open(path)
+    packet = doc.get_new_xref()
+    doc.update_object(packet, "<< /Length 0 >>")
+    doc.update_stream(packet, b"<xdp/>")  # contents don't matter for detection
+    doc.xref_set_key(doc.pdf_catalog(), "AcroForm/XFA", f"[(template) {packet} 0 R]")
+    doc.save(tmp_path / "xfa.pdf")
+    return tmp_path / "xfa.pdf"
+
+
+@pytest.fixture
 def encrypted_pdf(tmp_path: Path) -> Path:
     src = make_text_pdf(tmp_path / "plain.pdf", 1)
     doc = pymupdf.open(src)
@@ -249,3 +279,30 @@ def trigger_shortcut(widget: object, keys: str) -> None:
             action.trigger()
             return
     raise AssertionError(f"no action bound to {keys}")
+
+
+@pytest.fixture(autouse=True)
+def no_save_dialogs(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[object]]:
+    """Save-related modal dialogs would block the run. By default: discard unsaved
+    changes on close, cancel the signed-document warning, cancel Save As.
+    Tests override these with monkeypatch to drive other answers."""
+    from pdr_sign.ui import dialogs
+
+    asked: dict[str, list[object]] = {"unsaved": [], "signed": [], "path": []}
+
+    def unsaved(_parent: object, name: str) -> str:
+        asked["unsaved"].append(name)
+        return "discard"
+
+    def signed(_parent: object) -> str:
+        asked["signed"].append(True)
+        return "cancel"
+
+    def save_path(_parent: object, title: str, suggested: object) -> None:
+        asked["path"].append((title, suggested))
+        return None
+
+    monkeypatch.setattr(dialogs, "ask_unsaved", unsaved)
+    monkeypatch.setattr(dialogs, "confirm_signed", signed)
+    monkeypatch.setattr(dialogs, "ask_save_path", save_path)
+    return asked

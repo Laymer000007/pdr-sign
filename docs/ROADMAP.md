@@ -10,7 +10,7 @@ of each phase.
   and view the copies in Firefox. Every field type must fill, and every value must
   show after save.
 
-## Phase 5 – Save pipeline (additions)
+## Phase 5 – Save pipeline (additions) — done
 
 - **Settings dialog** (overflow menu → Settings…): theme (System / Light / Dark, applied
   live), default zoom, default text colour, signature store location, "Open links

@@ -261,3 +261,57 @@ Choices made where the build spec was silent or needed interpretation. Newest la
 - **Stamps never snap into signature fields.**
 - **The Fill & Sign panel now scrolls**, with Done pinned at the bottom, because it
   holds three saved strips plus the contextual Stamp controls.
+
+## Fill & Sign toggle fix
+
+- **Root cause:** `FillSignPanel.setFixedWidth(280)` also pins the minimum width. Hiding
+  animates the *maximum* width to 0, but the layout honours the minimum, so the panel
+  stayed 280 px wide while the icon, `fill_mode` and the internal flag all said
+  "closed". The panel's minimum is now 0 (the content inside carries the fixed width),
+  and once collapsed the panel is hidden too. `MainWindow.set_fill_mode` is the only
+  path that shows or hides it.
+
+## Phase 5
+
+- **Saving never touches the live document.** `services/saving.py` copies the file,
+  writes the current state onto the copy (strip old PDR annotations, apply changed
+  field values, write items), saves (incremental when `can_save_incrementally()`,
+  otherwise a full rewrite; encryption kept with `PDF_ENCRYPT_KEEP`), **verifies by
+  reopening** (page count, every changed field value, every editable item, every
+  placed image; for a flattened copy, that no widgets or annotations remain and the
+  text is present), and only then `os.replace`s the target, keeping
+  `<name>.pdr-backup` until the replace has succeeded. If anything fails, the
+  original stays as it was and a clear error says so.
+- **After Save (and Save As) the tab reloads from the written file**, keeping its
+  place, page and zoom. Text, marks and lines reopen as editable items;
+  signatures, initials and stamps are now page content. The undo history starts
+  fresh at that point.
+- **Reopened items are taken off the in-memory pages before the canvas exists.**
+  Otherwise the first tiles render them, and they show twice (pixels plus overlay).
+  Found in the end-to-end check; there's a regression test.
+- **Flattened copies are always a full rewrite with garbage collection**, so the old
+  form data and annotations are really gone, not hidden in an earlier revision. A
+  flattened copy can't overwrite the open document, and the open document keeps its
+  unsaved changes.
+- **List boxes get our own appearance stream** (every option, the selected ones on
+  a light band, scrolled to the first selected one), because MuPDF draws them
+  empty, so flattening lost the choice.
+- **Save:** the header button and Ctrl+S are enabled only with unsaved changes.
+  A read-only file or folder falls back to Save As ("This file can't be changed
+  here. Save a copy:"). A document with a digital signature first asks:
+  Save As… (default) / Cancel / Save anyway. Ctrl+Shift+S is Save As. The overflow
+  menu has Save As…, Save flattened copy… and Settings…, and the panel has
+  Flatten… next to Done.
+- **Closing a tab or the window with unsaved changes** asks Save / Discard / Cancel.
+  Cancel keeps the window open.
+- **XFA forms** show a dismissible banner; reading, signing and printing still work.
+- **The Settings dialog** (roadmap) applies and saves every change immediately: theme
+  (live), default zoom (next open), default ink (live in open documents), the
+  signature and stamp folder (the library switches to it), and "Open web and email
+  links without asking".
+- **Saving runs on the UI thread behind a wait cursor.** It's a few hundred ms for
+  normal forms. Moving it onto a worker is possible later; the live document is
+  never touched, so it would be safe.
+- `main_window.py` stays under 400 lines by moving settings, links, printing and the
+  tab close button into `ui/window_actions.py`, and the save logic into
+  `ui/save_flow.py`.

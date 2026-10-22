@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QInputDialog,
     QLabel,
     QLineEdit,
@@ -105,3 +108,52 @@ class AboutDialog(QDialog):
         for widget in (logo, name, meta, licence, credits_):
             layout.addWidget(widget)
         layout.addWidget(buttons)
+
+
+def ask_save_path(parent: QWidget | None, title: str, suggested: Path) -> Path | None:
+    """A Save As file dialog. Adds ``.pdf`` when the name has no extension."""
+    name, _ = QFileDialog.getSaveFileName(parent, title, str(suggested), "PDF files (*.pdf)")
+    if not name:
+        return None
+    path = Path(name)
+    return path if path.suffix.lower() == ".pdf" else path.with_name(path.name + ".pdf")
+
+
+def confirm_signed(parent: QWidget | None) -> str:
+    """The document carries a digital signature: "save_as", "save" or "cancel"."""
+    box = QMessageBox(parent)
+    box.setWindowTitle("Signed document")
+    box.setIcon(QMessageBox.Icon.Warning)
+    box.setText("This document has a digital signature.")
+    box.setInformativeText(
+        "Saving changes into it will invalidate that signature. "
+        "Save a copy instead to keep the signed original as it is."
+    )
+    save_as = box.addButton("Save As…", QMessageBox.ButtonRole.AcceptRole)
+    box.addButton(QMessageBox.StandardButton.Cancel)
+    anyway = box.addButton("Save anyway", QMessageBox.ButtonRole.DestructiveRole)
+    box.setDefaultButton(save_as)
+    box.exec()
+    clicked = box.clickedButton()
+    return "save_as" if clicked is save_as else "save" if clicked is anyway else "cancel"
+
+
+def ask_unsaved(parent: QWidget | None, name: str) -> str:
+    """Closing with unsaved changes: "save", "discard" or "cancel"."""
+    box = QMessageBox(parent)
+    box.setWindowTitle("Unsaved changes")
+    box.setIcon(QMessageBox.Icon.Question)
+    box.setText(f"Save the changes to “{name}” before closing?")
+    box.setInformativeText("If you don't save, your filled-in fields and signatures are lost.")
+    box.setStandardButtons(
+        QMessageBox.StandardButton.Save
+        | QMessageBox.StandardButton.Discard
+        | QMessageBox.StandardButton.Cancel
+    )
+    box.setDefaultButton(QMessageBox.StandardButton.Save)
+    answer = box.exec()
+    if answer == QMessageBox.StandardButton.Save:
+        return "save"
+    if answer == QMessageBox.StandardButton.Discard:
+        return "discard"
+    return "cancel"

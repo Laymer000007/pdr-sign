@@ -329,6 +329,8 @@ QTreeWidget::item:selected {{ background: {t.hover}; color: {t.text}; }}
 #FieldList::item {{ padding: 4px 4px; border-radius: 4px; }}
 #FieldList::item:selected {{ background: {t.hover}; color: {t.text}; }}
 
+#Banner {{ background: {t.surface}; border-bottom: 1px solid {t.border}; }}
+
 #ZoomIndicator {{
     background: {t.surface}; color: {t.text};
     border: 1px solid {t.border}; border-radius: 14px; padding: 4px 12px;

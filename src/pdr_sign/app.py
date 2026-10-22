@@ -82,6 +82,7 @@ def build_window(
 ) -> MainWindow:
     window = MainWindow(controller.tokens, user_settings, recent)
     controller.window = window
+    window.theme_controller = controller
     return window
 
 

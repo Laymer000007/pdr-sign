@@ -239,6 +239,9 @@ def apply_values(doc: Document, values: Mapping[str, FieldValue]) -> set[int]:
                     widget.update()
                     if len(selected) > 1:
                         _set_multi_selection(pdf, widget, selected)
+                    # MuPDF draws list boxes empty; anything that uses the appearance
+                    # (flattening, many viewers) would lose the choice. Draw our own.
+                    _draw_list_box(pdf, widget, [str(v) for v in selected])
                     changed.add(index)
                     continue
                 elif kind == "combo" and isinstance(value, str):
@@ -283,6 +286,36 @@ def _append_option(pdf: pymupdf.Document, widget: pymupdf.Widget, value: str) ->
     kind, opt = pdf.xref_get_key(holder, "Opt")
     items = opt.strip()[1:-1] if kind == "array" else ""
     pdf.xref_set_key(holder, "Opt", f"[{items} {pymupdf.get_pdf_str(value)}]")
+
+
+LIST_HIGHLIGHT = "0.80 0.86 0.97"  # light blue band behind selected rows
+
+
+def _draw_list_box(pdf: pymupdf.Document, widget: pymupdf.Widget, selected: list[str]) -> None:
+    """Every option on its own line, selected ones on a highlight band, scrolled so the
+    first selected option is in view (like a list box drawn by a desktop viewer)."""
+    kind, ref = pdf.xref_get_key(widget.xref, "AP/N")
+    if kind != "xref":
+        return
+    ap = int(ref.split()[0])
+    rect = pymupdf.Rect(widget.rect)
+    width, height = rect.width, rect.height
+    size = float(widget.text_fontsize or 0) or 10.0
+    line = size + 2
+    options = _options(widget.choice_values)
+    rows = max(1, int((height - 2) // line))
+    first = next((i for i, (export, _) in enumerate(options) if export in selected), 0)
+    top = max(0, min(first - rows + 1, len(options) - rows)) if first >= rows else 0
+    ops = ["/Tx BMC", "q", f"1 1 {width - 2:.2f} {height - 2:.2f} re W n"]
+    for row, (export, label) in enumerate(options[top : top + rows]):
+        y = height - 1 - (row + 1) * line
+        if export in selected:
+            ops.append(f"{LIST_HIGHLIGHT} rg 1 {y:.2f} {width - 2:.2f} {line:.2f} re f")
+        baseline = y + (line - size) / 2 + size * 0.22
+        text = pymupdf.get_pdf_str(label)
+        ops.append(f"BT 0 0 0 rg /Helv {size:g} Tf 2 {baseline:.2f} Td {text} Tj ET")
+    ops += ["Q", "EMC"]
+    pdf.update_stream(ap, "\n".join(ops).encode("latin-1", "replace"))
 
 
 def has_xfa(doc: Document) -> bool:

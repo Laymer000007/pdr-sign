@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 
+from pdr_sign.ui import save_flow
+
 if TYPE_CHECKING:
     from pdr_sign.ui.main_window import MainWindow
 
@@ -36,6 +38,8 @@ def install(window: MainWindow) -> None:
         lambda: window._with_tab(lambda t: t.view.copy_selection()),
     )
     add([QKeySequence.StandardKey.Print], window.print_current)
+    add(["Ctrl+S"], lambda: window._with_tab(lambda t: save_flow.save(window, t)))
+    add(["Ctrl+Shift+S"], lambda: window._with_tab(lambda t: save_flow.save_as(window, t)))
     add(["Ctrl+E"], lambda: window.set_fill_mode(not window.fill_mode))
     add(
         [QKeySequence.StandardKey.Undo],

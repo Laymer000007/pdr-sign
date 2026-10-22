@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import contextlib
 from pathlib import Path
+from typing import Protocol
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import (
     QCloseEvent,
-    QDesktopServices,
     QDragEnterEvent,
     QDragLeaveEvent,
     QDropEvent,
@@ -31,7 +31,7 @@ from pdr_sign.services.document import Document, DocumentError, PasswordRequired
 from pdr_sign.services.recent import RecentFiles
 from pdr_sign.services.settings import Settings
 from pdr_sign.services.signatures import SignatureStore
-from pdr_sign.ui import dialogs, icons, printing, shortcuts
+from pdr_sign.ui import dialogs, icons, save_flow, shortcuts, window_actions
 from pdr_sign.ui.canvas import Canvas
 from pdr_sign.ui.document_tab import DocumentTab
 from pdr_sign.ui.empty_state import EmptyState
@@ -40,7 +40,9 @@ from pdr_sign.ui.render_scheduler import RenderScheduler
 from pdr_sign.ui.signature_library import SignatureLibrary
 from pdr_sign.ui.theme import Tokens
 
-SAFE_LINK_SCHEMES = {"http", "https", "mailto"}
+
+class ThemeLike(Protocol):
+    def set_override(self, override: str) -> None: ...
 
 
 def zoom_setting(zoom: float, mode: str) -> str:
@@ -93,6 +95,7 @@ class MainWindow(QMainWindow):
         self._printer: QPrinter | None = None  # kept so printer choices persist
         self.fill_mode = False
         self.signatures = SignatureLibrary(SignatureStore(self.settings.signature_dir), self)
+        self.theme_controller: ThemeLike | None = None  # set by app.build_window
         self._connect()
         shortcuts.install(self)
         self.tokens = tokens
@@ -113,6 +116,12 @@ class MainWindow(QMainWindow):
         h.search_requested.connect(lambda: self._with_tab(lambda t: t.open_search()))
         h.print_requested.connect(self.print_current)
         h.fill_toggled.connect(self.set_fill_mode)
+        h.save_requested.connect(lambda: self._with_tab(lambda t: save_flow.save(self, t)))
+        h.save_as_requested.connect(lambda: self._with_tab(lambda t: save_flow.save_as(self, t)))
+        h.flatten_requested.connect(
+            lambda: self._with_tab(lambda t: save_flow.save_flattened_copy(self, t))
+        )
+        h.settings_requested.connect(self.open_settings)
         self.empty_state.open_requested.connect(self.browse)
         self.empty_state.recent_requested.connect(lambda p: self.open_paths([p]))
         self.tab_bar.currentChanged.connect(self._on_tab_changed)
@@ -155,6 +164,7 @@ class MainWindow(QMainWindow):
         self.header.set_zoom(tab.view.zoom, tab.view.zoom_mode)
         self.header.set_sidebar_checked(tab.sidebar_visible)
         self.header.set_fill_checked(self.fill_mode)
+        self.header.set_save_enabled(tab.model.dirty)
         marker = "• " if tab.model.dirty else ""
         self.setWindowTitle(f"{marker}{tab.doc.display_name} – PDR")
         tab.view.setFocus()
@@ -203,12 +213,14 @@ class MainWindow(QMainWindow):
         tab.external_link.connect(self.open_external_link)
         tab.dirty_changed.connect(lambda _d, t=tab: self._update_tab_title(t))
         tab.fill_done.connect(lambda: self.set_fill_mode(False))
+        tab.flatten_requested.connect(lambda t=tab: save_flow.save_flattened_copy(self, t))
         self.tabs.append(tab)
         self.stack.addWidget(tab)
         self.stack.setCurrentWidget(tab)
         tab.set_sidebar_visible(self.settings.show_sidebar, animate=False)
         tab.set_tokens(self.tokens)
         tab.set_panel_visible(self.fill_mode, animate=False)
+        tab.set_default_ink(self.settings.default_text_color)
 
         entry = self.recent.get(doc.path)
         self._apply_zoom_setting(tab, entry.zoom if entry and entry.zoom else None)
@@ -222,22 +234,17 @@ class MainWindow(QMainWindow):
         self.tab_bar.blockSignals(True)
         index = self.tab_bar.addTab(doc.path.name)
         self.tab_bar.setTabToolTip(index, str(doc.path))
-        self.tab_bar.setTabButton(index, QTabBar.ButtonPosition.RightSide, self._close_button(tab))
+        self.tab_bar.setTabButton(
+            index, QTabBar.ButtonPosition.RightSide, window_actions.close_button(self, tab)
+        )
         self.tab_bar.setCurrentIndex(index)
         self.tab_bar.blockSignals(False)
         self._refresh_chrome()
 
-    def _close_button(self, tab: DocumentTab) -> QToolButton:
-        button = QToolButton()
-        button.setObjectName("TabClose")
-        button.setAutoRaise(True)
-        button.setAccessibleName(f"Close {tab.doc.path.name}")
-        button.setToolTip("Close (Ctrl+W)")
-        button.setIcon(icons.icon("x", self.tokens.muted, 14))
-        button.clicked.connect(lambda: self.close_tab(tab))
-        return button
-
-    def close_tab(self, tab: DocumentTab) -> None:
+    def close_tab(self, tab: DocumentTab, ask: bool = True) -> bool:
+        """Close a tab; with unsaved changes, ask first. False if the user cancelled."""
+        if ask and not save_flow.confirm_close(self, tab):
+            return False
         self._remember(tab)
         index = self.tabs.index(tab)
         self.tabs.pop(index)
@@ -250,6 +257,35 @@ class MainWindow(QMainWindow):
         if self.tabs:
             self.stack.setCurrentWidget(self.tabs[self.tab_bar.currentIndex()])
         self._refresh_chrome()
+        return True
+
+    def reload_tab(self, tab: DocumentTab, path: Path) -> DocumentTab | None:
+        """Reopen ``tab`` from ``path`` (after saving) in the same place, page and zoom."""
+        index = self.tabs.index(tab)
+        password = tab.doc.password
+        self.close_tab(tab, ask=False)  # remembers page and zoom for the reopen
+        try:
+            doc = Document.open(path, password)
+        except DocumentError as exc:
+            dialogs.show_error(self, "Couldn't reopen the saved file", str(exc))
+            return None
+        self._add_tab(doc)
+        new = self.tabs[-1]
+        if index < len(self.tabs) - 1:
+            self.tab_bar.moveTab(len(self.tabs) - 1, index)
+            self.tab_bar.setCurrentIndex(index)
+        return new
+
+    def open_settings(self) -> None:
+        window_actions.open_settings(self)
+
+    def open_external_link(self, uri: str) -> None:
+        window_actions.open_external_link(self, uri)
+
+    def toast(self, text: str) -> None:
+        tab = self.current_tab()
+        if tab is not None:
+            tab.view.indicator.show_message(text, 1800)
 
     def _remember(self, tab: DocumentTab) -> None:
         zoom = zoom_setting(tab.view.zoom, tab.view.zoom_mode)
@@ -257,7 +293,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         for tab in list(self.tabs):
-            self.close_tab(tab)
+            if not self.close_tab(tab):
+                event.ignore()  # the user chose Cancel
+                return
         settings_service.save(self.settings)
         super().closeEvent(event)
 
@@ -313,27 +351,13 @@ class MainWindow(QMainWindow):
             self._refresh_chrome()
 
     def print_current(self) -> None:
-        tab = self.current_tab()
-        if tab is None:
-            return
-        if self._printer is None:
-            self._printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        printing.run_print_dialog(self, self._printer, tab.doc, tab.view.current_page)
+        window_actions.print_current(self)
 
     def set_sidebar_visible(self, visible: bool) -> None:
         self.settings.show_sidebar = visible
         for tab in self.tabs:
             tab.set_sidebar_visible(visible, animate=tab is self.current_tab())
         self.header.set_sidebar_checked(visible)
-
-    def open_external_link(self, uri: str) -> None:
-        url = QUrl(uri)
-        if url.scheme().lower() not in SAFE_LINK_SCHEMES:
-            message = f"PDR only opens web and email links.\n\n{uri}"
-            dialogs.show_error(self, "Link not opened", message)
-            return
-        if self.settings.open_links_without_asking or dialogs.confirm_external_link(self, uri):
-            QDesktopServices.openUrl(url)
 
     # --- theme / drag and drop -----------------------------------------------------
 

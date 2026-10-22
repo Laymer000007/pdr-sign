@@ -27,6 +27,11 @@ class SignatureLibrary(QObject):
         self.store = store
         self._session: list[LibraryItem] = []
 
+    def set_store(self, store: SignatureStore) -> None:
+        """Another folder (Settings): saved items come from there from now on."""
+        self.store = store
+        self.changed.emit()
+
     def items(self, kind: SignatureKind) -> list[LibraryItem]:
         """Newest first: this session's unsaved ones, then the saved ones."""
         session = [i for i in reversed(self._session) if i.kind == kind]

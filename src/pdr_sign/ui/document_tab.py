@@ -5,12 +5,13 @@ from __future__ import annotations
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QTimer, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
 
-from pdr_sign.services import forms
+from pdr_sign.services import forms, stamps
 from pdr_sign.services.document import Document
 from pdr_sign.services.forms import FieldInfo
 from pdr_sign.services.search import SearchHit
 from pdr_sign.services.signatures import SignatureStore, as_kind
 from pdr_sign.ui import signature_dialog, stamp_dialog
+from pdr_sign.ui.banner import Banner
 from pdr_sign.ui.canvas import Canvas
 from pdr_sign.ui.fill_model import FillModel
 from pdr_sign.ui.fill_sign_panel import FillSignPanel
@@ -37,6 +38,7 @@ class DocumentTab(QWidget):
     external_link = Signal(str)
     dirty_changed = Signal(bool)
     fill_done = Signal()
+    flatten_requested = Signal()
 
     def __init__(
         self,
@@ -49,11 +51,22 @@ class DocumentTab(QWidget):
         self.doc = doc
         self.library = library or SignatureLibrary(SignatureStore())
         self._tokens: Tokens = LIGHT
+        # Items PDR saved earlier come back as editable overlays. Take them off the
+        # in-memory pages *before* the canvas exists: it starts rendering tiles at once,
+        # and a tile rendered with them still on the page would draw each item twice.
+        reopened = stamps.read_overlays(doc, remove=True)
         self.view = Canvas(doc, scheduler, self)
         self.search_bar = SearchBar(self)
         self.search = SearchController(doc, self)
         self.model = FillModel(forms.list_fields(doc), self)
         self.view.attach_fill(self.model)
+        self.model.load(reopened)
+        self.signed = forms.is_signed(self.model.fields)
+        self.xfa_banner = Banner(
+            "This form uses XFA and can't be filled here. You can still read, sign and print it.",
+            self,
+        )
+        self.xfa_banner.setVisible(forms.has_xfa(doc))
         self.panel = FillSignPanel(self.model.fields, self)
         self.panel.setMaximumWidth(0)
         self.panel.hide()
@@ -81,6 +94,7 @@ class DocumentTab(QWidget):
         column = QVBoxLayout()
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
+        column.addWidget(self.xfa_banner)
         column.addWidget(self.search_bar)
         column.addWidget(self.view, 1)
         row.addLayout(column, 1)
@@ -119,6 +133,7 @@ class DocumentTab(QWidget):
         self.panel.style_changed.connect(layer.apply_style)
         self.panel.field_activated.connect(self.focus_field)
         self.panel.done.connect(self.fill_done)
+        self.panel.flatten_requested.connect(self.flatten_requested)
         self.panel.sign_requested.connect(self.sign)
         for strip in self.panel.saved.values():
             strip.chosen.connect(self._arm_saved)
@@ -210,6 +225,12 @@ class DocumentTab(QWidget):
     def _refresh_saved(self) -> None:
         for kind, strip in self.panel.saved.items():
             strip.set_items(self.library.items(as_kind(kind)))
+
+    def set_default_ink(self, color: str) -> None:
+        layer = self.view.fill_layer
+        if layer is not None:
+            layer.text_color = color
+            self.panel.set_style(layer.text_size, color)
 
     def focus_field(self, name: str) -> None:
         if self.view.field_layer is not None:

@@ -27,7 +27,12 @@ class ZoomIndicator(QLabel):
         self.hide()
 
     def show_zoom(self, zoom: float) -> None:
-        self.setText(f"{round(zoom * 100)} %")
+        self.show_message(f"{round(zoom * 100)} %")
+
+    def show_message(self, text: str, visible_ms: int = VISIBLE_MS) -> None:
+        """A short-lived pill (zoom level, "Saved", …)."""
+        self._hide_timer.setInterval(visible_ms)
+        self.setText(text)
         self.adjustSize()
         self.reposition()
         self._fade.stop()
