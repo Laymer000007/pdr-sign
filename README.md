@@ -1,6 +1,6 @@
-# PDR – Portable Document Read and Sign
+# PDR Sign
 
-Fast PDF reader with Fill & Sign, for the Ubuntu desktop.
+Portable Document Read and Sign: a fast PDF reader with Fill & Sign, for the Ubuntu desktop.
 
 PDR is a calm, content-first PDF viewer: continuous scrolling, thumbnails, outline,
 search, printing, and a Fill & Sign panel for filling forms, ticking boxes and placing

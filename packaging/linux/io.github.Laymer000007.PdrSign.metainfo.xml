@@ -3,8 +3,8 @@
   <id>io.github.Laymer000007.PdrSign</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>AGPL-3.0-or-later</project_license>
-  <name>PDR – Portable Document Read and Sign</name>
-  <summary>Fast PDF reader with Fill &amp; Sign</summary>
+  <name>PDR Sign</name>
+  <summary>Portable Document Read and Sign</summary>
   <developer id="io.github.laymer000007">
     <name>Laymer000007</name>
   </developer>

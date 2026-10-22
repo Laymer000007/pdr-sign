@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pdr_sign import APP_NAME
 from pdr_sign.services import layout
 from pdr_sign.ui import icons
 from pdr_sign.ui.theme import HEADER_HEIGHT, SPACING, Tokens, disabled_color
@@ -123,7 +124,7 @@ class HeaderBar(QWidget):
         menu.addSeparator()
         settings = menu.addAction("Settings…")
         settings.triggered.connect(self.settings_requested)
-        about = QAction("About PDR", menu)
+        about = QAction(f"About {APP_NAME}", menu)
         about.triggered.connect(self.about_requested)
         menu.addAction(about)
         self.menu_button.setMenu(menu)

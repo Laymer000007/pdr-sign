@@ -8,8 +8,8 @@ Installed-Size: @SIZE@
 Depends: libc6 (>= 2.35), libgl1, libegl1, libfontconfig1, libxkbcommon0, libdbus-1-3, libwayland-client0
 Recommends: xdg-desktop-portal, xdg-desktop-portal-gnome | xdg-desktop-portal-gtk | xdg-desktop-portal-kde
 Homepage: https://github.com/Laymer000007/pdr-sign
-Description: Fast PDF reader with Fill & Sign
- PDR – Portable Document Read and Sign is a calm, fast PDF reader with
+Description: Portable Document Read and Sign
+ PDR Sign is a calm, fast PDF reader with
  continuous scrolling, thumbnails, outline, search, text selection and
  printing, following the desktop's light or dark theme.
  .

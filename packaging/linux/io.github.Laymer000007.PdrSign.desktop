@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=PDR – Portable Document Read and Sign
+Name=PDR Sign
 GenericName=PDF Reader
-Comment=Fast PDF reader with Fill & Sign
+Comment=Portable Document Read and Sign
 Exec=pdr-sign %U
 TryExec=pdr-sign
 Icon=io.github.Laymer000007.PdrSign

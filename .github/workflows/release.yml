@@ -48,8 +48,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" release/* \
-            --title "PDR $GITHUB_REF_NAME" \
-            --notes "PDR – Portable Document Read and Sign $GITHUB_REF_NAME. Packages: AppImage (any distribution), .deb (Ubuntu 22.04 and newer), snap. Verify downloads with SHA256SUMS."
+            --title "PDR Sign $GITHUB_REF_NAME" \
+            --notes "PDR Sign $GITHUB_REF_NAME – Portable Document Read and Sign. Packages: AppImage (any distribution), .deb (Ubuntu 22.04 and newer), snap. Verify downloads with SHA256SUMS."
 
   snap-store:
     name: Snap Store (edge)

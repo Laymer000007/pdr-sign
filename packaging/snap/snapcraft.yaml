@@ -1,6 +1,8 @@
 # Snap for the Ubuntu App Center. CI copies this file to snap/snapcraft.yaml at the
 # repository root (snapcraft builds from there) and runs snapcraft / action-build.
 name: pdr-sign
+title: PDR Sign
+summary: Portable Document Read and Sign
 base: core24
 adopt-info: pdr-sign
 grade: stable

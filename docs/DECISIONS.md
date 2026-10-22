@@ -406,3 +406,12 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   white (91 % / 60 %); page text selection is the accent at low alpha. Search hits
   stay amber. AppStream branding: `#C7C7F4` (light) / `#00005C` (dark), so the blue
   icon stands out on both.
+
+## Display name "PDR Sign"
+
+- Users see **PDR Sign** (window title, About, menu entry, AppStream `<name>`, snap
+  `title`, README); the tagline / `<summary>` / desktop `Comment` / .deb short
+  description is **Portable Document Read and Sign**. Package, snap, command and
+  app ID stay `pdr-sign` / `io.github.Laymer000007.PdrSign`. The icon SVG's own
+  `<title>` is left as delivered (byte-for-byte). Running text that says "PDR" (for
+  example the owner-worded signed-copy confirmation) is unchanged.

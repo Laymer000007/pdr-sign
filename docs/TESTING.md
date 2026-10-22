@@ -18,7 +18,7 @@ Install one at a time (remove the previous one first; they share the app ID).
 1. [ ] **Self-test:** `pdr-sign --self-test ~/pdr-selftest --show-in-folder` (AppImage:
        run the file with the same arguments) — all checks ok; the file manager opens
        with the second signed copy selected (snap: the folder opens).
-2. [ ] **App menu:** "PDR – Portable Document Read and Sign" with the blue icon; it
+2. [ ] **App menu:** "PDR Sign" with the blue icon; it
        launches; the dock shows the same icon (no generic one).
 3. [ ] **No warning:** run `pdr-sign` from a terminal — no "Could not register app ID".
 4. [ ] **Open With:** right-click a PDF in Files → Open With → PDR opens it. With PDR

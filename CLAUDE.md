@@ -1,4 +1,4 @@
-# PDR – Portable Document Read and Sign
+# PDR Sign – Portable Document Read and Sign
 
 The spec is `BUILD_PROMPT.md`. Owner additions to the phases are in `docs/ROADMAP.md`
 (check it at the start of every phase). Choices the spec doesn't cover are logged in
