@@ -15,16 +15,21 @@ from typing import Any, Literal
 
 import pymupdf
 
+from pdr_sign.services import sigimage
 from pdr_sign.services.document import Document
 from pdr_sign.services.text import Rect
 
 # PyMuPDF defines its constants at import time; its type stubs don't list them.
 _C: Any = pymupdf
 
-OverlayKind = Literal["text", "date", "initials", "check", "cross", "dot", "line", "signature"]
+OverlayKind = Literal[
+    "text", "date", "initials", "check", "cross", "dot", "line", "signature", "stamp"
+]
 MARK_KINDS: tuple[OverlayKind, ...] = ("check", "cross", "dot")
 TEXT_KINDS: tuple[OverlayKind, ...] = ("text", "date")
-IMAGE_KINDS: tuple[OverlayKind, ...] = ("signature", "initials")
+IMAGE_KINDS: tuple[OverlayKind, ...] = ("signature", "initials", "stamp")
+STAMP_DEFAULT_MM = 40.0
+MIN_OPACITY = 0.5
 LINE_LENGTH = 40.0  # points, for a line placed with a plain click
 
 # ZapfDingbats glyphs, available in every PDF viewer without embedding a font.
@@ -48,7 +53,11 @@ class OverlayItem:
     font_size: float = DEFAULT_FONT_SIZE
     color: str = TEXT_COLORS["black"]
     id: str = field(default_factory=new_id)
-    image: bytes | None = None  # signature / initials PNG (transparent, trimmed)
+    image: bytes | None = None  # signature / initials / stamp PNG (transparent, trimmed)
+    # Stamps only: clockwise degrees about the centre of ``rect`` (which stays the
+    # unrotated box), and 0.5-1.0 opacity.
+    rotation: float = 0.0
+    opacity: float = 1.0
 
     # For a line, ``rect`` holds its two end points (x1, y1, x2, y2) as drawn, not a
     # normalised box: the direction matters for the end-point handles.
@@ -131,11 +140,17 @@ def _write_signature(page: pymupdf.Page, item: OverlayItem) -> None:
     tools: it is not an annotation and does not reopen as an editable item."""
     if not item.image:
         return
-    rect = pymupdf.Rect(item.rect) * page.derotation_matrix
+    image = item.image
+    x0, y0, x1, y1 = item.rect
+    if item.rotation % 360 or item.opacity < 1:
+        # PDF images only turn in quarter turns and have no opacity of their own, so
+        # bake a copy as placed, sharp enough to print (see sigimage.bake).
+        image, (w, h) = sigimage.bake(image, x1 - x0, y1 - y0, item.rotation, item.opacity)
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        x0, y0, x1, y1 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
+    rect = pymupdf.Rect(x0, y0, x1, y1) * page.derotation_matrix
     # ``rotate`` turns the image with the page so it reads upright as displayed.
-    page.insert_image(
-        rect, stream=item.image, keep_proportion=True, overlay=True, rotate=page.rotation
-    )
+    page.insert_image(rect, stream=image, keep_proportion=True, overlay=True, rotate=page.rotation)
 
 
 def _write_line(pdf: pymupdf.Document, page: pymupdf.Page, item: OverlayItem) -> None:

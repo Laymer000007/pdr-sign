@@ -17,13 +17,19 @@ from __future__ import annotations
 import io
 import math
 from dataclasses import dataclass
+from typing import Any
 
-from PIL import Image, ImageChops, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageFilter, ImageMath, ImageOps
+from PIL.PngImagePlugin import PngInfo
 
 WORK_SIZE = 1600  # longest side while processing
 OUTPUT_MAX_WIDTH = 1200
 MAX_AUTO_ANGLE = 15.0
-INK_COLORS = {"black": (0, 0, 0), "blue": (29, 78, 216)}
+INK_COLORS = {"black": (0, 0, 0), "blue": (29, 78, 216), "red": (200, 30, 30)}
+BAKE_DPI = 600  # rotated/faded stamps are re-rendered at least this sharp...
+BAKE_MAX_PX = 5000  # ...but never larger than this on their longest side
+LOW_RES_PX = 400  # narrower than this prints soft at stamp sizes
+WIDTH_KEY = "pdr:width_mm"  # PNG text chunk holding a stamp's real width
 
 
 @dataclass(frozen=True)
@@ -33,6 +39,10 @@ class PhotoOptions:
     rotation: int = 0  # extra quarter turns, clockwise: 0, 90, 180, 270
     straighten: float | None = None  # degrees; None = automatic
     crop: tuple[float, float, float, float] | None = None  # fractions of the source
+    # Stamps: round and boxy shapes have no baseline to straighten by, and a stamp's
+    # own frame lines must not be mistaken for a table edge.
+    auto_straighten: bool = True
+    keep_frames: bool = False
 
 
 @dataclass(frozen=True)
@@ -225,6 +235,39 @@ def principal_angle(mask: Image.Image) -> float:
     return -math.degrees(0.5 * math.atan2(2 * mu11, mu20 - mu02))
 
 
+def decontaminate(image: Image.Image) -> Image.Image:
+    """Recover the ink's own colour at every pixel, for "original colours".
+
+    A pixel is ink and paper mixed by the ink's coverage a: c = a*ink + (1-a)*paper.
+    Coverage comes from darkness relative to the local paper, scaled so dense ink
+    (the 98th percentile) counts as fully covered. Solving for ink removes the pale
+    fringe soft edges would otherwise carry, and dividing by the local paper colour
+    undoes shadows and the paper's tint.
+    """
+    gray = image.convert("L")
+    darkness = ImageChops.subtract(_paper(gray), gray)
+    hist = darkness.histogram()
+    total, seen, dense = sum(hist[8:]), 0, 255
+    for value in range(255, 7, -1):  # 98th percentile of the inked pixels
+        seen += hist[value]
+        if seen >= total * 0.02:
+            dense = max(value, 16)
+            break
+    coverage = darkness.convert("F")
+    bands = []
+    for band in image.split():
+        paper = _paper(band).convert("F")
+
+        def unmix(e: dict[str, Any], dense: float = dense) -> Any:
+            a = e["min"](e["d"] / dense, 1)
+            ink = e["max"]((e["c"] - e["p"] * (1 - a)) / e["max"](a, 0.08), 0)
+            return e["min"](ink * 255 / e["max"](e["p"], 1), 255)
+
+        result = ImageMath.lambda_eval(unmix, c=band.convert("F"), p=paper, d=coverage)
+        bands.append(result.convert("L"))
+    return Image.merge("RGB", bands)
+
+
 def clean_photo(data: bytes, options: PhotoOptions | None = None) -> CleanResult:
     """A photo or scan of a signature on paper → transparent, trimmed, recoloured PNG."""
     options = options or PhotoOptions()
@@ -245,10 +288,19 @@ def clean_photo(data: bytes, options: PhotoOptions | None = None) -> CleanResult
     if options.crop is None:  # a manual crop already says where the signature is
         image = image.crop(paper_box(image.convert("L")))
 
-    mask = strip_borders(ink_mask(image.convert("L"), options.strength))
-    angle = principal_angle(mask) if options.straighten is None else options.straighten
-    if options.straighten is None and abs(angle) > MAX_AUTO_ANGLE:
-        angle = 0.0  # probably not a baseline; let the user turn it by hand
+    mask = ink_mask(image.convert("L"), options.strength)
+    if not options.keep_frames:
+        mask = strip_borders(mask)
+    if options.straighten is not None:
+        angle = options.straighten
+    elif options.auto_straighten:
+        angle = principal_angle(mask)
+        if abs(angle) > MAX_AUTO_ANGLE:
+            angle = 0.0  # probably not a baseline; let the user turn it by hand
+    else:
+        angle = 0.0
+    if options.ink == "original":
+        image = decontaminate(image)
     if abs(angle) >= 0.3:
         mask = mask.rotate(-angle, resample=Image.Resampling.BICUBIC, expand=True, fillcolor=0)
         image = image.rotate(
@@ -256,8 +308,7 @@ def clean_photo(data: bytes, options: PhotoOptions | None = None) -> CleanResult
         )
 
     if options.ink == "original":
-        ink = ImageOps.autocontrast(image, cutoff=1)
-        result = ink.convert("RGBA")
+        result = image.convert("RGBA")
     else:
         result = Image.new("RGBA", mask.size, (*INK_COLORS.get(options.ink, (0, 0, 0)), 0))
     result.putalpha(mask)
@@ -281,6 +332,62 @@ def clean_upload(data: bytes, options: PhotoOptions | None = None) -> CleanResul
         result = fit_width(trim(rgba))
         return CleanResult(to_png(result), 0.0, result.size)
     return clean_photo(data, options)
+
+
+def with_width_mm(png: bytes, width_mm: float) -> bytes:
+    """Store a stamp's real printed width inside its PNG (a text chunk)."""
+    info = PngInfo()
+    info.add_text(WIDTH_KEY, f"{width_mm:g}")
+    buffer = io.BytesIO()
+    load(png).save(buffer, "PNG", pnginfo=info, optimize=True)
+    return buffer.getvalue()
+
+
+def width_mm(png: bytes) -> float | None:
+    try:
+        value = Image.open(io.BytesIO(png)).info.get(WIDTH_KEY)
+        return float(value) if value else None
+    except (OSError, ValueError):
+        return None
+
+
+def is_low_res(png: bytes) -> bool:
+    return load(png).width < LOW_RES_PX
+
+
+def rotated_size(width: float, height: float, degrees: float) -> tuple[float, float]:
+    """Bounding box of a width x height box turned by ``degrees``."""
+    rad = math.radians(degrees)
+    c, s = abs(math.cos(rad)), abs(math.sin(rad))
+    return width * c + height * s, width * s + height * c
+
+
+def bake(
+    png: bytes,
+    width_pt: float,
+    height_pt: float,
+    rotation: float = 0.0,
+    opacity: float = 1.0,
+    dpi: int = BAKE_DPI,
+    max_px: int = BAKE_MAX_PX,
+) -> tuple[bytes, tuple[float, float]]:
+    """Render a stamp as placed: at ``dpi`` for its size on the page, turned clockwise
+    by ``rotation`` degrees and faded to ``opacity``. Returns the PNG and its bounding
+    box in points (turning grows the box)."""
+    image = load(png).convert("RGBA")
+    box_w, box_h = rotated_size(width_pt, height_pt, rotation)
+    scale = dpi / 72
+    longest = max(box_w, box_h) * scale
+    if longest > max_px:  # very large stamps: cap the pixels, not the size
+        scale *= max_px / longest
+    size = (max(1, round(width_pt * scale)), max(1, round(height_pt * scale)))
+    image = image.resize(size, Image.Resampling.LANCZOS)
+    if rotation % 360:
+        image = image.rotate(-rotation, resample=Image.Resampling.BICUBIC, expand=True)
+    if opacity < 1:
+        alpha = image.getchannel("A").point(lambda a: round(a * max(0.0, opacity)))
+        image.putalpha(alpha)
+    return to_png(image), (box_w, box_h)
 
 
 def trim_png(data: bytes) -> bytes:

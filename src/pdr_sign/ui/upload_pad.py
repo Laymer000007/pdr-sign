@@ -45,17 +45,37 @@ from pdr_sign.ui.worker import Runner
 
 IMAGE_FILTER = "Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff)"
 DEBOUNCE_MS = 150
+SIGNATURE_INKS = (("black", "Black"), ("blue", "Blue"), ("original", "Original"))
+STAMP_INKS = (("original", "Original"), ("red", "Red"), ("blue", "Blue"), ("black", "Black"))
+SIGNATURE_HINT = (
+    "A phone photo of your signature on white paper works well. "
+    "PNG or JPG; you can also drop a file here."
+)
+STAMP_HINT = (
+    "A scan or phone photo of the stamp on white paper, or a transparent PNG. "
+    "You can also drop a file here."
+)
+# Stamps: keep the frame lines, don't auto-straighten round or boxy shapes, keep
+# their colours, and clean a little more gently (thin lettering).
+STAMP_OPTIONS = PhotoOptions(ink="original", auto_straighten=False, keep_frames=True, strength=0.4)
 
 
 class UploadPad(QWidget):
     changed = Signal()
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        inks: tuple[tuple[str, str], ...] = SIGNATURE_INKS,
+        base: PhotoOptions | None = None,
+        hint: str = SIGNATURE_HINT,
+    ) -> None:
         super().__init__(parent)
         self.setAcceptDrops(True)
         self.data: bytes | None = None
         self.result: CleanResult | None = None
-        self.options = PhotoOptions()
+        self.base = base or PhotoOptions()
+        self.options = self.base
         self._token = 0
         self._runner = Runner(threads=1, parent=self)
         self._debounce = QTimer(self, singleShot=True, interval=DEBOUNCE_MS)
@@ -63,12 +83,9 @@ class UploadPad(QWidget):
 
         self.choose = QPushButton("Choose photo or image…")
         self.choose.clicked.connect(self.browse)
-        hint = QLabel(
-            "A phone photo of your signature on white paper works well. "
-            "PNG or JPG; you can also drop a file here."
-        )
-        hint.setObjectName("Muted")
-        hint.setWordWrap(True)
+        hint_label = QLabel(hint)
+        hint_label.setObjectName("Muted")
+        hint_label.setWordWrap(True)
         self.status = QLabel("")
         self.status.setObjectName("Muted")
 
@@ -83,7 +100,7 @@ class UploadPad(QWidget):
         ink_row = QHBoxLayout()
         ink_row.setSpacing(SPACING // 2)
         ink_group = QButtonGroup(self)
-        for key, text in (("black", "Black"), ("blue", "Blue"), ("original", "Original")):
+        for key, text in inks:
             button = QToolButton()
             button.setText(text)
             button.setCheckable(True)
@@ -93,7 +110,7 @@ class UploadPad(QWidget):
             ink_group.addButton(button)
             ink_row.addWidget(button)
             self.ink_buttons[key] = button
-        self.ink_buttons["black"].setChecked(True)
+        self.ink_buttons.get(self.base.ink, next(iter(self.ink_buttons.values()))).setChecked(True)
 
         self.rotate_left = QToolButton()
         self.rotate_left.setProperty("iconName", "rotate-ccw")
@@ -117,6 +134,9 @@ class UploadPad(QWidget):
         self.auto_button.setText("Auto")
         self.auto_button.setToolTip("Straighten automatically")
         self.auto_button.clicked.connect(lambda: self._set(straighten=None))
+        self.auto_button.setVisible(self.base.auto_straighten)
+        if not self.base.auto_straighten:
+            self.angle_label.setText("+0.0°")
 
         self.strength = QSlider(Qt.Orientation.Horizontal)
         self.strength.setRange(0, 100)
@@ -160,7 +180,7 @@ class UploadPad(QWidget):
 
         top = QHBoxLayout()
         top.addWidget(self.choose)
-        top.addWidget(hint, 1)
+        top.addWidget(hint_label, 1)
         column = QVBoxLayout(self)
         column.setContentsMargins(0, 0, 0, 0)
         column.addLayout(top)
@@ -200,7 +220,7 @@ class UploadPad(QWidget):
             self.status.setText("That file isn't an image PDR can read.")
             return
         self.data = data
-        self.options = PhotoOptions(ink=self._ink())
+        self.options = replace(self.base, ink=self._ink())
         self._show_original(image)
         self.straighten.blockSignals(True)
         self.straighten.setValue(0)
@@ -235,14 +255,14 @@ class UploadPad(QWidget):
             widget.setEnabled(on)
 
     def _ink(self) -> str:
-        return next((k for k, b in self.ink_buttons.items() if b.isChecked()), "black")
+        return next((k for k, b in self.ink_buttons.items() if b.isChecked()), self.base.ink)
 
     # --- options ----------------------------------------------------------------------
 
     def _set(self, **changes: object) -> None:
         self.options = replace(self.options, **changes)  # type: ignore[arg-type]
         if "straighten" in changes and changes["straighten"] is None:
-            self.angle_label.setText("Auto")
+            self.angle_label.setText("Auto" if self.base.auto_straighten else "+0.0°")
         self._debounce.start()
 
     def _turn(self, degrees: int) -> None:
@@ -289,7 +309,7 @@ class UploadPad(QWidget):
             assert isinstance(result, CleanResult)
             self.result = result
             self.result_view.set_png(result.png)
-            if self.options.straighten is None:  # show what "auto" chose
+            if self.options.straighten is None and self.base.auto_straighten:  # what auto chose
                 self.straighten.blockSignals(True)
                 self.straighten.setValue(round(result.angle * 10))
                 self.straighten.blockSignals(False)

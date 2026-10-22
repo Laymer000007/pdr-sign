@@ -1,4 +1,4 @@
-"""Saved signatures and initials: transparent PNGs on disk. Qt-free.
+"""Saved signatures, initials and company stamps: transparent PNGs on disk. Qt-free.
 
 Default folder: ``~/.local/share/pdr-sign/signatures/`` (inside a snap,
 ``$SNAP_USER_DATA/signatures``), or ``Settings.signature_dir``. Signatures are
@@ -17,8 +17,8 @@ from typing import Literal
 
 from pdr_sign.services.settings import data_dir
 
-SignatureKind = Literal["signature", "initials"]
-KINDS: tuple[SignatureKind, ...] = ("signature", "initials")
+SignatureKind = Literal["signature", "initials", "stamp"]
+KINDS: tuple[SignatureKind, ...] = ("signature", "initials", "stamp")
 MAX_PER_KIND = 5
 
 

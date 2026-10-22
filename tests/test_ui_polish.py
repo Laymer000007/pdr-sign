@@ -118,12 +118,13 @@ def test_tool_tiles_are_identical_three_per_row(window: MainWindow, text_pdf: Pa
         "date",
         "initials",
         "signature",
+        "stamp",
     ]
     assert {b.size().toTuple() for b in buttons} == {TILE.toTuple()}
     rows: dict[int, list[int]] = {}
     for b in buttons:
         rows.setdefault(b.y(), []).append(b.x())
-    assert [len(xs) for _, xs in sorted(rows.items())] == [3, 3, 2]
+    assert [len(xs) for _, xs in sorted(rows.items())] == [3, 3, 3]
     assert len({tuple(xs[:2]) for xs in rows.values()}) == 1  # columns line up
     assert buttons[2].geometry().right() <= tab.panel.width() - 16  # fits the panel
 

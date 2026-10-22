@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QScrollArea,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -26,6 +27,7 @@ from pdr_sign.services.stamps import (
 )
 from pdr_sign.ui import icons
 from pdr_sign.ui.saved_signatures import SavedStrip
+from pdr_sign.ui.stamp_controls import StampControls
 from pdr_sign.ui.stepper import Stepper
 from pdr_sign.ui.theme import LIGHT, PANEL_WIDTH, SPACING, Tokens
 
@@ -39,8 +41,9 @@ TOOL_BUTTONS = (
     ("date", "Date", "calendar", "Click to place today's date"),
     ("initials", "Initials", "pen-tool", "Place your initials"),
     ("signature", "Signature", "signature", "Place your signature"),
+    ("stamp", "Stamp", "stamp", "Place a company stamp"),
 )
-IMAGE_TOOLS = ("initials", "signature")
+IMAGE_TOOLS = ("initials", "signature", "stamp")
 TILE_COLUMNS = 3
 TILE_GAP = SPACING // 2
 # Three equal tiles across the panel's content width (panel minus 2 x 16 px padding).
@@ -128,27 +131,48 @@ class FillSignPanel(QWidget):
         for widget in (self.fields_title, self.fields):
             widget.setVisible(bool(fillable))
 
-        self.saved = {kind: SavedStrip(kind) for kind in ("signature", "initials")}
+        self.saved = {kind: SavedStrip(kind) for kind in ("signature", "initials", "stamp")}
+        self.stamp_controls = StampControls()
+        self.stamp_controls.hide()  # shown while a stamp is selected
+        if fillable:
+            self.fields.setMinimumHeight(150)
 
         self.done_button = QPushButton("Done")
         self.done_button.setProperty("primary", True)
         self.done_button.setToolTip("Close Fill & Sign (Ctrl+E)")
         self.done_button.clicked.connect(self.done)
 
-        column = QVBoxLayout(self)
-        column.setContentsMargins(SPACING * 2, SPACING * 2, SPACING * 2, SPACING * 2)
+        # Everything but Done scrolls, so a short window still reaches every section.
+        content = QWidget()
+        content.setObjectName("FillSignContent")
+        column = QVBoxLayout(content)
+        column.setContentsMargins(SPACING * 2, SPACING * 2, SPACING * 2, SPACING)
         column.setSpacing(SPACING * 1 + SPACING // 2)
         column.addWidget(title)
         column.addLayout(tools)
+        column.addWidget(self.stamp_controls)
         column.addWidget(style_label)
         column.addLayout(color_row)
-        column.addWidget(self.saved["signature"])
-        column.addWidget(self.saved["initials"])
+        for strip in self.saved.values():
+            column.addWidget(strip)
         column.addWidget(self.fields_title)
         column.addWidget(self.fields, 1)
         if not fillable:
             column.addStretch(1)
-        column.addWidget(self.done_button)
+        self.content_scroll = QScrollArea()
+        self.content_scroll.setObjectName("FillSignScroll")
+        self.content_scroll.setWidget(content)
+        self.content_scroll.setWidgetResizable(True)
+        self.content_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.content_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, SPACING * 2)
+        outer.setSpacing(SPACING)
+        outer.addWidget(self.content_scroll, 1)
+        done_row = QHBoxLayout()
+        done_row.setContentsMargins(SPACING * 2, 0, SPACING * 2, 0)
+        done_row.addWidget(self.done_button)
+        outer.addLayout(done_row)
 
     # --- state in -----------------------------------------------------------------
 
@@ -156,6 +180,7 @@ class FillSignPanel(QWidget):
         self._tokens = t
         for strip in self.saved.values():
             strip.set_tokens(t)
+        self.stamp_controls.set_tokens(t)
         self.size_box.set_tokens(t)
         for button in self._buttons.values():
             name = str(button.property("iconName"))

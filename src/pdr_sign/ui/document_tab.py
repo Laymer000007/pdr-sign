@@ -10,7 +10,7 @@ from pdr_sign.services.document import Document
 from pdr_sign.services.forms import FieldInfo
 from pdr_sign.services.search import SearchHit
 from pdr_sign.services.signatures import SignatureStore, as_kind
-from pdr_sign.ui import signature_dialog
+from pdr_sign.ui import signature_dialog, stamp_dialog
 from pdr_sign.ui.canvas import Canvas
 from pdr_sign.ui.fill_model import FillModel
 from pdr_sign.ui.fill_sign_panel import FillSignPanel
@@ -126,6 +126,10 @@ class DocumentTab(QWidget):
             strip.new_requested.connect(self.create_signature)
             strip.delete_requested.connect(lambda k, i: self.library.remove(as_kind(k), i))
         self.library.changed.connect(self._refresh_saved)
+        controls = self.panel.stamp_controls
+        controls.rotate_requested.connect(layer.rotate_stamps)
+        controls.opacity_changed.connect(layer.set_stamp_opacity)
+        self.model.item_changed.connect(self._sync_stamp_controls)
         if self.view.field_layer is not None:
             self.view.field_layer.on_sign_field = self.sign_field
         self._refresh_saved()
@@ -171,7 +175,10 @@ class DocumentTab(QWidget):
             self.view.fill_layer.sign_field(field, png)
 
     def _ask(self, kind: str) -> bytes | None:
-        answer = signature_dialog.ask_signature(as_kind(kind), self._tokens, self)
+        if kind == "stamp":
+            answer = stamp_dialog.ask_stamp(self._tokens, self)
+        else:
+            answer = signature_dialog.ask_signature(as_kind(kind), self._tokens, self)
         if answer is None:
             return None
         png, remember = answer
@@ -205,10 +212,20 @@ class DocumentTab(QWidget):
         layer = self.view.fill_layer
         if layer is None:
             return
+        self._sync_stamp_controls()
         for graphic in layer.selected():
             if isinstance(graphic, TextGraphic | LineGraphic):
                 self.panel.set_style(graphic.item.font_size, graphic.item.color)
                 return
+
+    def _sync_stamp_controls(self, *_: object) -> None:
+        """Show the Stamp controls while a stamp is selected, with its current state."""
+        layer = self.view.fill_layer
+        stamps = layer.selected_stamps() if layer is not None else []
+        self.panel.stamp_controls.setVisible(bool(stamps))
+        if stamps:
+            item = stamps[0].item
+            self.panel.stamp_controls.show_stamp(item.rotation, item.opacity)
 
     # --- search ------------------------------------------------------------------
 

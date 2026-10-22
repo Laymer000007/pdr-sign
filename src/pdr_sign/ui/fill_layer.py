@@ -7,20 +7,29 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QDate, QLocale, QObject, QPointF, Signal
 from PySide6.QtGui import QPixmap
 
+from pdr_sign.services import sigimage
 from pdr_sign.services.forms import FieldInfo
-from pdr_sign.services.stamps import DEFAULT_FONT_SIZE, MARK_KINDS, TEXT_COLORS, OverlayItem
+from pdr_sign.services.stamps import (
+    DEFAULT_FONT_SIZE,
+    MARK_KINDS,
+    STAMP_DEFAULT_MM,
+    TEXT_COLORS,
+    OverlayItem,
+)
 from pdr_sign.ui.fill_model import FillModel
 from pdr_sign.ui.overlay.base import OverlayGraphic
 from pdr_sign.ui.overlay.check_item import MARK_SIZE, MarkGraphic
 from pdr_sign.ui.overlay.line_item import MIN_LENGTH, LineGraphic, default_end
 from pdr_sign.ui.overlay.signature_item import SignatureGraphic
+from pdr_sign.ui.overlay.stamp_item import StampGraphic
 from pdr_sign.ui.overlay.text_item import TextGraphic
 
 if TYPE_CHECKING:
     from pdr_sign.ui.page_item import PageItem
 
-TOOLS = ("text", "check", "cross", "dot", "line", "date", "initials", "signature")
-IMAGE_TOOLS = ("signature", "initials")
+TOOLS = ("text", "check", "cross", "dot", "line", "date", "initials", "signature", "stamp")
+IMAGE_TOOLS = ("signature", "initials", "stamp")
+MM = 72 / 25.4  # points per millimetre
 DEFAULT_WIDTH = {"signature": 150.0, "initials": 56.0}  # points, before snapping
 SNAP_DISTANCE = 12.0  # points: how near a signature field counts as "in" it
 FIELD_INSET = 2.0
@@ -126,13 +135,17 @@ class FillLayer(QObject):
         pixmap = QPixmap()
         pixmap.loadFromData(png, "PNG")
         aspect = pixmap.height() / pixmap.width() if pixmap.width() else 0.3
-        width = DEFAULT_WIDTH.get(kind, 150.0)
+        if kind == "stamp":  # its real printed size, when the dialog recorded one
+            width = (sigimage.width_mm(png) or STAMP_DEFAULT_MM) * MM
+        else:
+            width = DEFAULT_WIDTH.get(kind, 150.0)
         height = width * aspect
         info = self.pages[page].info
         x = min(max(point.x() - width / 2, 0), info.width - width)
         y = min(max(point.y() - height / 2, 0), info.height - height)
         rect = (x, y, x + width, y + height)
-        rect = self.snap_to_field(page, rect, point) or rect
+        if kind != "stamp":  # stamps go where they're put, not into signature fields
+            rect = self.snap_to_field(page, rect, point) or rect
         item = OverlayItem(kind, page, rect, image=png)  # type: ignore[arg-type]
         self.model.add_item(item)
         self.set_tool("")  # one-shot
@@ -223,6 +236,17 @@ class FillLayer(QObject):
                 self.model.remove_item(graphic.item.id)
         return bool(doomed)
 
+    def selected_stamps(self) -> list[StampGraphic]:
+        return [g for g in self.selected() if isinstance(g, StampGraphic)]
+
+    def rotate_stamps(self, degrees: float) -> None:
+        for graphic in self.selected_stamps():
+            graphic.rotate_by(degrees)
+
+    def set_stamp_opacity(self, opacity: float) -> None:
+        for graphic in self.selected_stamps():
+            graphic.set_stamp_opacity(opacity)
+
     def apply_style(self, font_size: float, color: str) -> None:
         """New defaults from the panel; also restyles selected text items."""
         self.text_size, self.text_color = font_size, color
@@ -241,6 +265,8 @@ class FillLayer(QObject):
         graphic: OverlayGraphic
         if item.kind == "line":
             graphic = LineGraphic(item, self.model, page)
+        elif item.kind == "stamp":
+            graphic = StampGraphic(item, self.model, page)
         elif item.is_image:
             graphic = SignatureGraphic(item, self.model, page, snap=self.snap_to_field)
         elif item.is_mark:

@@ -307,7 +307,7 @@ QTreeWidget::item:selected {{ background: {t.hover}; color: {t.text}; }}
 #FillToggle:checked, #FillToggle:checked:hover {{
     background: {t.accent}; border-color: {t.accent};
 }}
-#FillSignPanel {{ background: {t.window}; }}
+#FillSignPanel, #FillSignContent, #FillSignScroll {{ background: {t.window}; }}
 #PanelTitle {{ font-size: 15px; font-weight: 600; }}
 #ToolButton {{
     background: {t.surface}; border: 1px solid {t.border}; border-radius: {r}px;

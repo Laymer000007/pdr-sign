@@ -227,3 +227,37 @@ Choices made where the build spec was silent or needed interpretation. Newest la
 - **`paper`, `paper_border` and `paper_muted` tokens** (the same in both themes) cover
   every surface that shows ink outside a page: saved signature tiles, the draw pad and
   the upload checkerboard. Black and blue ink are both ≥ 4.5:1 on paper (tested).
+
+## Stamp tool (before Phase 5)
+
+- **Stamps reuse the signature machinery:** the Upload pad (with stamp presets), the
+  cleanup pipeline, the store and library (a third kind, up to 5), the panel strip,
+  and image placement. New pieces: `StampGraphic`, `StampControls`, `StampDialog`,
+  and `sigimage.bake`.
+- **Cleanup presets for stamps:** ink defaults to Original (Red, Blue and Black
+  recolour); no auto-straighten (round and boxy shapes have no baseline); frame
+  lines kept (`keep_frames`, which skips the edge-band stripping that would delete a
+  tightly cropped frame); gentler cleanup (0.4) for thin lettering.
+- **Original colours:** each pixel's ink colour is recovered by unmixing it from
+  the local paper colour, using a linear coverage estimate (darkness relative to
+  the 98th-percentile dense ink), then white-balanced against the local paper. This
+  removes the pale fringe and undoes shadows and paper tint. On the synthetic photo,
+  red comes out (180, 13, 23) against a drawn (190, 25, 35).
+- **Real size:** the dialog's "Actual size" (mm, default 40) is stored in the PNG
+  as a `pdr:width_mm` text chunk, so a stamp places at its printed width. Images
+  under 400 px wide get a "may print soft" warning.
+- **Turning and fading:** the item keeps its unrotated box plus a clockwise
+  `rotation` about its centre and an `opacity` (0.5–1.0). On the canvas there's a
+  rotate knob above the stamp (Shift snaps to 15°), ⟲/⟳ quarter turns and an opacity
+  slider in the panel (a whole slider drag is one undo step). Corner resizing works
+  in the stamp's own turned frame, so the opposite corner stays fixed, and moves
+  keep the turned outline on the page. The angle reads as −180…180°.
+- **Saving:** PDF images only turn in quarter turns and have no opacity, so a
+  turned or faded stamp is baked as placed: resampled to at least 600 dpi at its
+  placed size (longest side capped at 5000 px, which is 600 dpi up to about 211 mm),
+  turned, alpha scaled, then stamped into the page centred on the item. An
+  unturned, fully opaque stamp is inserted unchanged at its source resolution.
+  Checked in pdf.js and on all four page rotations.
+- **Stamps never snap into signature fields.**
+- **The Fill & Sign panel now scrolls**, with Done pinned at the bottom, because it
+  holds three saved strips plus the contextual Stamp controls.

@@ -23,7 +23,7 @@ class SavedStrip(QWidget):
     def __init__(self, kind: SignatureKind, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.kind = kind
-        noun = "Initials" if kind == "initials" else "Signatures"
+        noun = {"initials": "Initials", "stamp": "Stamps"}.get(kind, "Signatures")
         self.title = QLabel(noun)
         self.title.setObjectName("SectionTitle")
         self.grid = QGridLayout()
@@ -52,7 +52,7 @@ class SavedStrip(QWidget):
             self.grid.removeWidget(button)
             button.deleteLater()
         self.buttons = []
-        noun = "initials" if self.kind == "initials" else "signature"
+        noun = self.kind
         for n, item in enumerate(items):
             pixmap = QPixmap()
             pixmap.loadFromData(item.png, "PNG")
