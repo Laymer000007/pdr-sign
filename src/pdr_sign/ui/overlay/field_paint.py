@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from pdr_sign.services.forms import FieldInfo
+from pdr_sign.ui.theme import ACCENT, LIGHT
 
 if TYPE_CHECKING:
     from pdr_sign.ui.page_item import PageItem
@@ -25,9 +26,9 @@ FIELD_FONT = "Helvetica"  # what the saved appearance uses
 class FieldColors:
     """Set from theme tokens (``Canvas.set_tokens``)."""
 
-    fill = QColor("#E8EEFB")
-    border = QColor("#9AA8D6")
-    accent = QColor("#4F46E5")
+    fill = QColor(LIGHT.field_fill)
+    border = QColor(LIGHT.field_border)
+    accent = QColor(ACCENT)
 
 
 def auto_font_px(field: FieldInfo) -> float:

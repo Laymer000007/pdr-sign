@@ -46,8 +46,8 @@
     <keyword>stamp</keyword>
   </keywords>
   <branding>
-    <color type="primary" scheme_preference="light">#C7D2FE</color>
-    <color type="primary" scheme_preference="dark">#312E81</color>
+    <color type="primary" scheme_preference="light">#C7C7F4</color>
+    <color type="primary" scheme_preference="dark">#00005C</color>
   </branding>
   <screenshots>
     <screenshot type="default">

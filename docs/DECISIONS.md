@@ -388,3 +388,21 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   until then: `snap connect pdr-sign:cups-control`.
 - **Snap accessibility:** `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`, because confinement
   blocks Qt's "is a screen reader on?" query on the a11y bus.
+
+## Medium blue accent (matches the final icon)
+
+- **Two accent roles.** `accent` is the *fill* (primary buttons, active tools, the
+  Fill & Sign toggle, selection): `#0000CD` in both themes with white on it, hover
+  `#0000A8`, pressed `#00008B`. `accent_fg` is accent *text and outlines* on the
+  theme's own surfaces (links, focus rings, tab underline, toast actions): `#0000CD`
+  in light; `#9696FF` in dark. Supersedes the indigo `on_accent` entry above.
+- **Why `#9696FF`, not `#7B7BFF`:** accent text also sits on hover/pressed
+  backgrounds (toast action buttons), and `#383838` needs `#9696FF` for 4.5:1. It's
+  the darkest blue of the icon's hue that passes on all five dark surfaces
+  (window, surface, canvas, hover, pressed); a test pins this.
+- **Marks on pages and paper** (selection outlines, field focus, "Sign here", crop
+  frame) use the fill blue in both themes: pages and paper tiles are white either way.
+- **Tints derive from the accent:** form-field fill/border are `#0000CD` mixed with
+  white (91 % / 60 %); page text selection is the accent at low alpha. Search hits
+  stay amber. AppStream branding: `#C7C7F4` (light) / `#00005C` (dark), so the blue
+  icon stands out on both.

@@ -7,7 +7,7 @@ from pathlib import Path
 import pymupdf
 
 INK = (0.13, 0.13, 0.16)
-ACCENT = (0.31, 0.27, 0.9)
+ACCENT = (0.0, 0.0, 205 / 255)  # the icon blue
 CLAUSES = [
     (
         "1. Premises",

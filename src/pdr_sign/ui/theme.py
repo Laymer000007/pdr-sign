@@ -23,6 +23,20 @@ PAGE_GAP = 16
 ANIMATION_MS = 150
 
 
+# The icon's medium blue. Filled accent surfaces use it in both themes, with white on top.
+ACCENT = "#0000CD"
+
+
+def mix(a: str, b: str, amount: float) -> str:
+    """``a`` moved ``amount`` (0..1) of the way towards ``b``."""
+    ca, cb = QColor(a), QColor(b)
+    channels = (
+        round(x + (y - x) * amount)
+        for x, y in ((ca.red(), cb.red()), (ca.green(), cb.green()), (ca.blue(), cb.blue()))
+    )
+    return "#{:02X}{:02X}{:02X}".format(*channels)
+
+
 @dataclass(frozen=True)
 class Tokens:
     scheme: Scheme
@@ -32,19 +46,27 @@ class Tokens:
     text: str
     muted: str
     border: str
-    accent: str
-    on_accent: str
+    # Accent *text and outlines* on this theme's surfaces (links, focus rings, tab
+    # underline, accent text): 4.5:1 against window, surface, canvas, hover, pressed.
+    accent_fg: str
     # Derived helpers for hover/pressed states. These are neutral, not accent.
     hover: str
     pressed: str
+    # Filled accent (primary buttons, active tools, Fill & Sign toggle, selection), the
+    # same in both themes. Also used for marks drawn on pages and paper, which are light
+    # in both themes.
+    accent: str = ACCENT
+    accent_hover: str = "#0000A8"
+    accent_pressed: str = "#00008B"
+    on_accent: str = "#FFFFFF"
     # Search highlights are drawn on (white) pages, so both themes share them. Amber
     # rather than accent: the accent is reserved for selection and focus.
     search_hit: str = "#FCD34D"
     search_current: str = "#F59E0B"
     # Fillable form fields: a soft cool tint so they read as "type here", opaque enough
     # to cover the PDF's own (possibly stale) field appearance underneath.
-    field_fill: str = "#E8EEFB"
-    field_border: str = "#9AA8D6"
+    field_fill: str = mix(ACCENT, "#FFFFFF", 0.91)
+    field_border: str = mix(ACCENT, "#FFFFFF", 0.6)
     # Paper: where black/blue ink is shown outside a page (draw pad, upload preview,
     # saved signature tiles). Light in both themes so dark ink stays readable.
     paper: str = "#FFFFFF"
@@ -60,8 +82,7 @@ LIGHT = Tokens(
     text="#1F1F1F",
     muted="#6B6B6B",
     border="#E3E3E3",
-    accent="#4F46E5",
-    on_accent="#FFFFFF",
+    accent_fg=ACCENT,
     hover="#F0F0F0",
     pressed="#E6E6E6",
 )
@@ -74,21 +95,10 @@ DARK = Tokens(
     text="#EDEDED",
     muted="#A0A0A0",
     border="#333333",
-    accent="#818CF8",
-    on_accent="#1E1E1E",
+    accent_fg="#9696FF",  # lightest-needed blue of the same hue for 4.5:1 on pressed
     hover="#2E2E2E",
     pressed="#383838",
 )
-
-
-def mix(a: str, b: str, amount: float) -> str:
-    """``a`` moved ``amount`` (0..1) of the way towards ``b``."""
-    ca, cb = QColor(a), QColor(b)
-    channels = (
-        round(x + (y - x) * amount)
-        for x, y in ((ca.red(), cb.red()), (ca.green(), cb.green()), (ca.blue(), cb.blue()))
-    )
-    return "#{:02X}{:02X}{:02X}".format(*channels)
 
 
 def disabled_color(t: Tokens) -> str:
@@ -198,7 +208,7 @@ def build_palette(t: Tokens) -> QPalette:
         role.PlaceholderText: t.muted,
         role.Highlight: t.accent,
         role.HighlightedText: t.on_accent,
-        role.Link: t.accent,
+        role.Link: t.accent_fg,
         role.Mid: t.border,
     }
     for r, color in pairs.items():
@@ -235,13 +245,19 @@ QToolButton, QPushButton {{
 }}
 QToolButton:hover, QPushButton:hover {{ background: {t.hover}; }}
 QToolButton:pressed, QPushButton:pressed {{ background: {t.pressed}; }}
-QToolButton:focus, QPushButton:focus {{ border: 1px solid {t.accent}; }}
+QToolButton:focus, QPushButton:focus {{ border: 1px solid {t.accent_fg}; }}
 QToolButton:checked {{ background: {t.pressed}; }}
 
 QPushButton[primary="true"], QToolButton[primary="true"] {{
     background: {t.accent}; color: {t.on_accent}; border: 1px solid {t.accent};
     /* Qt drops a radius larger than half the height, so keep min-height in step. */
     border-radius: 14px; min-height: 18px; padding: 6px 16px; font-weight: 600;
+}}
+QPushButton[primary="true"]:hover, QToolButton[primary="true"]:hover {{
+    background: {t.accent_hover}; border-color: {t.accent_hover};
+}}
+QPushButton[primary="true"]:pressed, QToolButton[primary="true"]:pressed {{
+    background: {t.accent_pressed}; border-color: {t.accent_pressed};
 }}
 QPushButton[primary="true"]:focus, QToolButton[primary="true"]:focus {{
     border: 2px solid {t.text};
@@ -252,7 +268,7 @@ QLineEdit, QComboBox, QSpinBox {{
     border-radius: {r}px; padding: 4px 8px;
     selection-background-color: {t.accent}; selection-color: {t.on_accent};
 }}
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 1px solid {t.accent}; }}
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 1px solid {t.accent_fg}; }}
 
 QMenu {{
     background: {t.surface}; border: 1px solid {t.border};
@@ -268,7 +284,7 @@ QMenu::separator {{ height: 1px; background: {t.border}; margin: 4px 8px; }}
     background: {t.surface};
     border: 2px dashed {t.border}; border-radius: {r * 2}px;
 }}
-#DropZone[dragActive="true"] {{ border-color: {t.accent}; }}
+#DropZone[dragActive="true"] {{ border-color: {t.accent_fg}; }}
 #DropZoneTitle {{ font-size: 17px; font-weight: 600; }}
 #Muted {{ color: {t.muted}; }}
 
@@ -283,7 +299,7 @@ QTabBar::tab {{
     background: transparent; color: {t.muted};
     padding: 8px 12px; border: none; border-bottom: 2px solid transparent;
 }}
-QTabBar::tab:selected {{ color: {t.text}; border-bottom: 2px solid {t.accent}; }}
+QTabBar::tab:selected {{ color: {t.text}; border-bottom: 2px solid {t.accent_fg}; }}
 QTabBar::tab:hover {{ color: {t.text}; }}
 #SidebarTabs QTabBar::tab {{ padding: 8px 6px; }}
 #DocumentTabs {{ border-bottom: 1px solid {t.border}; }}
@@ -294,7 +310,9 @@ QTabBar::tab:hover {{ color: {t.text}; }}
 #Thumbnails::item {{
     color: {t.muted}; border: 2px solid transparent; border-radius: {r}px; padding: 4px;
 }}
-#Thumbnails::item:selected {{ color: {t.text}; border-color: {t.accent}; background: transparent; }}
+#Thumbnails::item:selected {{
+    color: {t.text}; border-color: {t.accent_fg}; background: transparent;
+}}
 #Thumbnails::item:hover {{ background: {t.hover}; }}
 QTreeWidget::item {{ padding: 4px 2px; border-radius: 4px; }}
 QTreeWidget::item:selected {{ background: {t.hover}; color: {t.text}; }}
@@ -304,9 +322,9 @@ QTreeWidget::item:selected {{ background: {t.hover}; color: {t.text}; }}
 #SearchResults::item {{ padding: 6px 8px; border-radius: 4px; }}
 #SearchResults::item:selected {{ background: {t.hover}; color: {t.text}; }}
 
-#FillToggle:checked, #FillToggle:checked:hover {{
-    background: {t.accent}; border-color: {t.accent};
-}}
+#FillToggle:checked {{ background: {t.accent}; border-color: {t.accent}; }}
+#FillToggle:checked:hover {{ background: {t.accent_hover}; border-color: {t.accent_hover}; }}
+#FillToggle:checked:pressed {{ background: {t.accent_pressed}; border-color: {t.accent_pressed}; }}
 #FillSignPanel, #FillSignContent, #FillSignScroll {{ background: {t.window}; }}
 #PanelTitle {{ font-size: 15px; font-weight: 600; }}
 #ToolButton {{
@@ -321,10 +339,12 @@ QTreeWidget::item:selected {{ background: {t.hover}; color: {t.text}; }}
 #SavedAdd {{ border: 1px dashed {t.border}; border-radius: {r}px; }}
 #ToolButton:hover {{ background: {t.hover}; }}
 #ToolButton:checked {{ background: {t.accent}; border-color: {t.accent}; color: {t.on_accent}; }}
+#ToolButton:checked:hover {{ background: {t.accent_hover}; border-color: {t.accent_hover}; }}
+#ToolButton:checked:pressed {{ background: {t.accent_pressed}; border-color: {t.accent_pressed}; }}
 #Stepper {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: {r}px; }}
 #Stepper QToolButton {{ padding: 4px; border-radius: 6px; }}
 #Swatch {{ border: 2px solid {t.border}; border-radius: 12px; }}
-#Swatch:checked {{ border: 2px solid {t.accent}; }}
+#Swatch:checked {{ border: 2px solid {t.accent_fg}; }}
 #FieldList {{ background: {t.window}; border: none; outline: none; }}
 #FieldList::item {{ padding: 4px 4px; border-radius: 4px; }}
 #FieldList::item:selected {{ background: {t.hover}; color: {t.text}; }}
@@ -332,7 +352,7 @@ QTreeWidget::item:selected {{ background: {t.hover}; color: {t.text}; }}
 #ActionToast {{
     background: {t.surface}; border: 1px solid {t.border}; border-radius: {r}px;
 }}
-#ToastAction {{ color: {t.accent}; font-weight: 600; }}
+#ToastAction {{ color: {t.accent_fg}; font-weight: 600; }}
 #Banner {{ background: {t.surface}; border-bottom: 1px solid {t.border}; }}
 
 #ZoomIndicator {{

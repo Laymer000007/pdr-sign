@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from pdr_sign.services.stamps import OverlayItem
 from pdr_sign.ui.page_item import PageItem
+from pdr_sign.ui.theme import ACCENT
 
 if TYPE_CHECKING:
     from pdr_sign.ui.fill_model import FillModel
@@ -33,7 +34,7 @@ MIN_SIZE = 6.0  # points
 
 class OverlayGraphic(QGraphicsObject):
     keep_aspect = False
-    accent = QColor("#4F46E5")  # set from theme tokens by Canvas.set_tokens()
+    accent = QColor(ACCENT)  # set from theme tokens by Canvas.set_tokens()
 
     def __init__(self, item: OverlayItem, model: FillModel, parent: QGraphicsItem) -> None:
         super().__init__(parent)
