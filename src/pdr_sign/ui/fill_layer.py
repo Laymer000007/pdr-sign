@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QDate, QLocale, QObject, QPointF, Signal
@@ -26,6 +27,20 @@ from pdr_sign.ui.overlay.text_item import TextGraphic
 
 if TYPE_CHECKING:
     from pdr_sign.ui.page_item import PageItem
+
+SIGNATURE_WORDS = re.compile(
+    r"(^|[^a-z])(sign(ature|ed)?|handtekening|unterschrift|firma|assinatura)", re.IGNORECASE
+)
+INITIALS_WORDS = re.compile(r"(^|[^a-z])(initials?|paraaf|paraphe)", re.IGNORECASE)
+DATE_WORDS = re.compile(r"date|datum|fecha", re.IGNORECASE)
+
+
+def looks_like(field: FieldInfo, words: re.Pattern[str]) -> bool:
+    """A text field whose name or label says it's for a signature (or initials), and
+    isn't the date next to one ("Signature date")."""
+    text = f"{field.name} {field.label}".replace("_", " ")
+    return bool(words.search(text)) and not DATE_WORDS.search(text) and field.fillable
+
 
 TOOLS = ("text", "check", "cross", "dot", "line", "date", "initials", "signature", "stamp")
 IMAGE_TOOLS = ("signature", "initials", "stamp")
@@ -55,6 +70,14 @@ class FillLayer(QObject):
         self.draft: LineGraphic | None = None  # a line being drawn by dragging
         self.armed_image: bytes | None = None  # what the signature/initials tool places
         self.sign_fields = [f for f in model.fields if f.kind == "signature" and not f.is_signed]
+        # Many forms draw the signature line as a plain text field ("Signature",
+        # "Handtekening"…). Signatures and initials fit into those too.
+        self.sign_like = [
+            f for f in model.fields if f.kind == "text" and looks_like(f, SIGNATURE_WORDS)
+        ]
+        self.initials_like = [
+            f for f in model.fields if f.kind == "text" and looks_like(f, INITIALS_WORDS)
+        ]
         model.item_added.connect(self._on_added)
         model.item_removed.connect(self._on_removed)
         model.item_changed.connect(self._on_changed)
@@ -145,7 +168,7 @@ class FillLayer(QObject):
         y = min(max(point.y() - height / 2, 0), info.height - height)
         rect = (x, y, x + width, y + height)
         if kind != "stamp":  # stamps go where they're put, not into signature fields
-            rect = self.snap_to_field(page, rect, point) or rect
+            rect = self.snap_to_field(page, rect, point, kind) or rect
         item = OverlayItem(kind, page, rect, image=png)  # type: ignore[arg-type]
         self.model.add_item(item)
         self.set_tool("")  # one-shot
@@ -162,13 +185,21 @@ class FillLayer(QObject):
         return self._place_image("signature", field.page, QPointF((x0 + x1) / 2, (y0 + y1) / 2))
 
     def snap_to_field(
-        self, page: int, rect: tuple[float, float, float, float], point: QPointF | None = None
+        self,
+        page: int,
+        rect: tuple[float, float, float, float],
+        point: QPointF | None = None,
+        kind: str = "signature",
     ) -> tuple[float, float, float, float] | None:
-        """If the click (or the item's centre) is in or near an empty signature field,
-        the image fitted inside that field (aspect kept, centred)."""
+        """If the click (or the item's centre) is in or near an empty signature field
+        (or a text field that is clearly one), the image fitted inside it (aspect kept,
+        centred). Real signature fields win over look-alike text fields."""
         cx = point.x() if point is not None else (rect[0] + rect[2]) / 2
         cy = point.y() if point is not None else (rect[1] + rect[3]) / 2
-        for field in self.sign_fields:
+        candidates = [*self.sign_fields, *self.sign_like]
+        if kind == "initials":
+            candidates = [*self.initials_like, *candidates]
+        for field in candidates:
             if field.page != page:
                 continue
             x0, y0, x1, y1 = field.rect

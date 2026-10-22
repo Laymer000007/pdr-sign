@@ -342,3 +342,124 @@ def test_clicking_sign_here_signs_into_the_field(
     assert len(tab.model.items) == 1 and asked == ["signature"]
     fill = tab.view.fill_layer
     assert fill is not None and fill.graphics[item.id].isSelected()
+
+
+# --- placing tools win over fields (real mouse) --------------------------------------
+
+
+def field_centre(tab: DocumentTab, name: str) -> tuple[int, QPointF]:
+    field = next(f for f in tab.model.fields if f.name == name)
+    x0, y0, x1, y1 = field.rect
+    return field.page, QPointF((x0 + x1) / 2, (y0 + y1) / 2)
+
+
+def test_armed_signature_click_in_signature_field_places_it(
+    qtbot: QtBot, window: MainWindow, form_pdf: Path, asked: list[str]
+) -> None:
+    tab = open_tab(window, form_pdf)
+    page, centre = field_centre(tab, "signature")
+    tab.view.go_to_page(page, 650)
+    layer = tab.view.fill_layer
+    assert layer is not None
+    other = png_of(300, 100)  # not the library's latest: the armed one must be used
+    layer.arm_image("signature", other)
+    click_page(tab, page, centre)  # qtbot-level QTest.mouseClick on the viewport
+    (item,) = tab.model.items.values()
+    assert item.image == other and asked == []  # placed, no dialog, no "Sign here" flow
+    field = next(f for f in tab.model.fields if f.name == "signature")
+    assert item.rect[0] >= field.rect[0] and item.rect[2] <= field.rect[2]
+    assert centre_of(item.rect) == pytest.approx(centre.toTuple(), abs=0.5)
+
+
+def centre_of(rect: tuple[float, float, float, float]) -> tuple[float, float]:
+    return (rect[0] + rect[2]) / 2, (rect[1] + rect[3]) / 2
+
+
+@pytest.fixture
+def signature_line_pdf(tmp_path: Path) -> Path:
+    """A form whose signature line is a plain text field, as many real forms do."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=595, height=842)
+    for name, rect in (
+        ("applicant_name", (72, 100, 300, 120)),
+        ("Handtekening van applikant", (72, 200, 300, 240)),
+        ("signature_date", (320, 200, 450, 240)),
+    ):
+        w = pymupdf.Widget()
+        w.field_type, w.field_name, w.rect = pymupdf.PDF_WIDGET_TYPE_TEXT, name, pymupdf.Rect(rect)
+        page.add_widget(w)
+    doc.save(tmp_path / "line.pdf")
+    return tmp_path / "line.pdf"
+
+
+def test_signature_fits_into_a_text_field_signature_line(
+    qtbot: QtBot, window: MainWindow, signature_line_pdf: Path
+) -> None:
+    from PySide6.QtWidgets import QLineEdit
+
+    tab = open_tab(window, signature_line_pdf)
+    layer = tab.view.fill_layer
+    assert layer is not None
+    layer.arm_image("signature", SIG)
+    _, centre = field_centre(tab, "Handtekening van applikant")
+    pos = tab.view.mapFromScene(tab.view.page_items[0].mapToScene(centre))
+    qtbot.mouseMove(tab.view.viewport(), pos)
+    assert tab.view.viewport().cursor().shape() == Qt.CursorShape.CrossCursor  # not a text cursor
+    qtbot.mouseClick(tab.view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
+    (item,) = tab.model.items.values()
+    assert (
+        item.rect[0] >= 72 and item.rect[2] <= 300 and item.rect[1] >= 200 and item.rect[3] <= 240
+    )
+    editor = tab.view.field_layer.by_name["Handtekening van applikant"][0]  # type: ignore[union-attr]
+    widget = editor.widget()
+    assert isinstance(widget, QLineEdit) and not widget.hasFocus() and widget.text() == ""
+    # A signature placed on the date beside it is *not* fitted into that field.
+    layer.arm_image("signature", SIG)
+    _, date_centre = field_centre(tab, "signature_date")
+    click_page(tab, 0, date_centre)
+    dated = next(i for i in tab.model.items.values() if i.id != item.id)
+    assert dated.rect[2] - dated.rect[0] == pytest.approx(150)  # default size, not fitted
+
+
+def test_text_tool_over_a_field_places_text(
+    qtbot: QtBot, window: MainWindow, form_pdf: Path
+) -> None:
+    tab = open_tab(window, form_pdf)
+    layer = tab.view.fill_layer
+    assert layer is not None
+    layer.set_tool("text")
+    _, centre = field_centre(tab, "name")
+    click_page(tab, 0, centre)
+    assert layer.tool == ""  # one-shot: a text box was placed
+    graphics = list(layer.graphics.values())
+    assert len(graphics) == 1 and tab.model.values["name"] == ""
+
+
+def test_double_click_with_a_sticky_tool_places_twice(window: MainWindow, form_pdf: Path) -> None:
+    tab = open_tab(window, form_pdf)
+    layer = tab.view.fill_layer
+    assert layer is not None
+    layer.set_tool("check")
+    pos = tab.view.mapFromScene(tab.view.page_items[0].mapToScene(QPointF(400, 500)))
+    # A real double-click arrives as press, release, double-click, release (QTest's
+    # mouseDClick sends only the double-click, so send the first click ourselves).
+    QTest.mouseClick(tab.view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
+    QTest.mouseDClick(tab.view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
+    assert [i.kind for i in tab.model.items.values()] == ["check", "check"]
+
+
+def test_without_a_tool_fields_still_take_clicks(
+    qtbot: QtBot, window: MainWindow, form_pdf: Path
+) -> None:
+    from PySide6.QtWidgets import QLineEdit
+
+    tab = open_tab(window, form_pdf)
+    window.activateWindow()
+    _, centre = field_centre(tab, "name")
+    click_page(tab, 0, centre)
+    editor = tab.view.field_layer.by_name["name"][0]  # type: ignore[union-attr]
+    widget = editor.widget()
+    assert isinstance(widget, QLineEdit)
+    assert tab.model.items == {}
+    if window.isActiveWindow():
+        assert widget.hasFocus()

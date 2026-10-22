@@ -154,8 +154,21 @@ class Canvas(PageView):
         item = self.itemAt(pos)
         return item is not None and not isinstance(item, PageItem)
 
+    @property
+    def placing(self) -> bool:
+        """A placing tool is active: clicks put items down."""
+        return self.fill_layer is not None and bool(self.fill_layer.tool)
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         pos = event.position().toPoint()
+        # An active tool wins over whatever is under the pointer: form-field editors,
+        # the "Sign here" box, existing items and text selection. (Before, a field
+        # editor took the click first, so an armed signature showed a text cursor.)
+        left = event.button() == Qt.MouseButton.LeftButton
+        if left and self.placing and (self._start_line(pos) or self._place_with_tool(pos)):
+            self._press_to_items = False
+            event.accept()
+            return
         self._press_to_items = self._interactive_item_at(pos)
         if self._press_to_items:
             super().mousePressEvent(event)
@@ -239,6 +252,8 @@ class Canvas(PageView):
             shape = Qt.CursorShape.ArrowCursor
         self.viewport().setCursor(shape)
         super().mouseMoveEvent(event)
+        if self.placing:  # field editors set a text cursor while hovered; placing wins
+            self.viewport().setCursor(Qt.CursorShape.CrossCursor)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if self._press_to_items:
@@ -265,6 +280,10 @@ class Canvas(PageView):
         event.accept()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self.placing:
+            # A quick second click with a sticky tool (check, cross, …) places again.
+            self.mousePressEvent(event)
+            return
         if self._interactive_item_at(event.position().toPoint()):
             super().mouseDoubleClickEvent(event)
             return

@@ -315,3 +315,20 @@ Choices made where the build spec was silent or needed interpretation. Newest la
 - `main_window.py` stays under 400 lines by moving settings, links, printing and the
   tab close button into `ui/window_actions.py`, and the save logic into
   `ui/save_flow.py`.
+
+## Placing tools win over form fields
+
+- **Root cause:** on a left press the canvas first asked "is there an interactive item
+  here?" (a field editor, the "Sign here" box, an existing item) and handed the click
+  to it before the active tool was considered. With a signature armed, clicking a
+  field focused it (text cursor); clicking a real signature field's "Sign here" box
+  ran its own "sign with the latest" flow instead of placing the armed one.
+- **Now:** while any placing tool is active, a left click places the item first.
+  The cursor stays a crosshair over fields, and a quick second click with a sticky
+  tool places again (Qt sends the second press as a double-click). With no tool
+  active, fields behave as before.
+- **Signature-line text fields:** many forms use a plain text field for the
+  signature line. Signatures and initials also fit into text fields whose name or
+  label says signature (signature/signed, Handtekening, Unterschrift, Firma,
+  Assinatura), but not "… date" fields. Initials also fit "Initials"/"Paraaf" fields.
+  Real signature fields take precedence.
