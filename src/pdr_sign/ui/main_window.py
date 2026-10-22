@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
@@ -118,8 +119,8 @@ class MainWindow(QMainWindow):
         h.fill_toggled.connect(self.set_fill_mode)
         h.save_requested.connect(lambda: self._with_tab(lambda t: save_flow.save(self, t)))
         h.save_as_requested.connect(lambda: self._with_tab(lambda t: save_flow.save_as(self, t)))
-        h.flatten_requested.connect(
-            lambda: self._with_tab(lambda t: save_flow.save_flattened_copy(self, t))
+        h.signed_copy_requested.connect(
+            lambda: self._with_tab(lambda t: save_flow.save_signed_copy(self, t))
         )
         h.settings_requested.connect(self.open_settings)
         self.empty_state.open_requested.connect(self.browse)
@@ -213,7 +214,6 @@ class MainWindow(QMainWindow):
         tab.external_link.connect(self.open_external_link)
         tab.dirty_changed.connect(lambda _d, t=tab: self._update_tab_title(t))
         tab.fill_done.connect(lambda: self.set_fill_mode(False))
-        tab.flatten_requested.connect(lambda t=tab: save_flow.save_flattened_copy(self, t))
         self.tabs.append(tab)
         self.stack.addWidget(tab)
         self.stack.setCurrentWidget(tab)
@@ -281,6 +281,11 @@ class MainWindow(QMainWindow):
 
     def open_external_link(self, uri: str) -> None:
         window_actions.open_external_link(self, uri)
+
+    def toast_actions(self, text: str, actions: list[tuple[str, Callable[[], None]]]) -> None:
+        tab = self.current_tab()
+        if tab is not None:
+            tab.view.action_toast.show_actions(text, actions)
 
     def toast(self, text: str) -> None:
         tab = self.current_tab()

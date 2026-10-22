@@ -157,3 +157,36 @@ def ask_unsaved(parent: QWidget | None, name: str) -> str:
     if answer == QMessageBox.StandardButton.Discard:
         return "discard"
     return "cancel"
+
+
+SIGNED_COPY_TITLE = "Save signed copy?"
+SIGNED_COPY_BODY = (
+    "PDR will create a new file: {name}\n\n"
+    "Your original stays unchanged, so you can still make corrections and save another "
+    "signed copy later.\n\n"
+    "In the new copy, everything you filled in, signed and stamped is locked into the "
+    "page. Fields, text, signatures and stamps can no longer be edited or removed in "
+    "normal PDF readers.\n\n"
+    "Please check the document carefully before continuing."
+)
+SIGNED_COPY_ACCEPT = "Save signed copy"
+
+
+def signed_copy_box(parent: QWidget | None, new_name: str) -> QMessageBox:
+    """The confirmation shown before writing a signed copy (Cancel is the default)."""
+    box = QMessageBox(parent)
+    box.setWindowTitle(SIGNED_COPY_TITLE)
+    box.setIcon(QMessageBox.Icon.Question)
+    box.setText(SIGNED_COPY_BODY.format(name=new_name))
+    cancel = box.addButton(QMessageBox.StandardButton.Cancel)
+    box.addButton(SIGNED_COPY_ACCEPT, QMessageBox.ButtonRole.AcceptRole)
+    box.setDefaultButton(cancel)
+    box.setEscapeButton(cancel)
+    return box
+
+
+def confirm_signed_copy(parent: QWidget | None, new_name: str) -> bool:
+    box = signed_copy_box(parent, new_name)
+    box.exec()
+    clicked = box.clickedButton()
+    return clicked is not None and clicked.text() == SIGNED_COPY_ACCEPT

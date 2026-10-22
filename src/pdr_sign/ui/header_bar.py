@@ -28,6 +28,10 @@ def icon_button(name: str, label: str, shortcut: str = "") -> QToolButton:
     return button
 
 
+# Chosen from three candidates: reads as "finished copy" without suggesting protection.
+SIGNED_COPY_ICON = "file-check"
+
+
 def zoom_label(zoom: float, mode: str) -> str:
     if mode == "fit-width":
         return "Fit width"
@@ -48,7 +52,7 @@ class HeaderBar(QWidget):
     fill_toggled = Signal(bool)
     save_requested = Signal()
     save_as_requested = Signal()
-    flatten_requested = Signal()
+    signed_copy_requested = Signal()
     settings_requested = Signal()
     print_requested = Signal()
 
@@ -73,6 +77,8 @@ class HeaderBar(QWidget):
         self.save_button = self._add_icon(icon_button("save", "Save", "Ctrl+S"))
         self.save_button.clicked.connect(self.save_requested)
         self.save_button.setEnabled(False)  # only with unsaved changes (set_save_enabled)
+        self.signed_copy_button = self._add_icon(icon_button(SIGNED_COPY_ICON, "Save signed copy"))
+        self.signed_copy_button.clicked.connect(self.signed_copy_requested)
 
         self.page_field = QLineEdit()
         self.page_field.setObjectName("PageField")
@@ -111,9 +117,8 @@ class HeaderBar(QWidget):
         self.print_action.triggered.connect(self.print_requested)
         self.save_as_action = menu.addAction("Save As…")
         self.save_as_action.triggered.connect(self.save_as_requested)
-        self.flatten_action = menu.addAction("Save flattened copy…")
-        self.flatten_action.setToolTip("A copy with everything baked in: no fillable fields")
-        self.flatten_action.triggered.connect(self.flatten_requested)
+        self.signed_copy_action = menu.addAction("Save signed copy…")
+        self.signed_copy_action.triggered.connect(self.signed_copy_requested)
         menu.addAction(self.print_action)
         menu.addSeparator()
         settings = menu.addAction("Settings…")
@@ -131,6 +136,7 @@ class HeaderBar(QWidget):
         row.addWidget(self.print_button)
         row.addWidget(self.fill_button)
         row.addWidget(self.save_button)
+        row.addWidget(self.signed_copy_button)
         row.addStretch(1)
         row.addWidget(self.page_field)
         row.addWidget(self.page_count)
@@ -184,7 +190,8 @@ class HeaderBar(QWidget):
         self.print_button.setEnabled(has_doc)
         self.fill_button.setEnabled(has_doc)
         self.save_as_action.setEnabled(has_doc)
-        self.flatten_action.setEnabled(has_doc)
+        self.signed_copy_action.setEnabled(has_doc)
+        self.signed_copy_button.setEnabled(has_doc)
         if not has_doc:
             self.save_button.setEnabled(False)
         if page_count is not None:

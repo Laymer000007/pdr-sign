@@ -1,4 +1,4 @@
-"""Save, Save As and Save flattened copy, as the user experiences them.
+"""Save, Save As and Save signed copy, as the user experiences them.
 
 Decides *where* and *whether* to write (signed documents, read-only files, cancel),
 runs the pipeline in ``services/saving.py``, reports problems clearly, and reloads the
@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QApplication
 
 from pdr_sign.services import saving
 from pdr_sign.services.saving import SaveRequest
-from pdr_sign.ui import dialogs
+from pdr_sign.ui import desktop, dialogs
 
 if TYPE_CHECKING:
     from pdr_sign.ui.document_tab import DocumentTab
@@ -101,26 +101,52 @@ def save_as(window: MainWindow, tab: DocumentTab, note: str = "") -> bool:
     return True
 
 
-def save_flattened_copy(window: MainWindow, tab: DocumentTab) -> bool:
-    """A copy with everything baked into the pages: no fillable fields, nothing editable.
-    The open document stays as it is (and keeps its unsaved changes)."""
+def save_signed_copy(window: MainWindow, tab: DocumentTab) -> Path | None:
+    """Write a new file with everything locked into the pages; the original stays as it
+    is (and so does this tab, unsaved changes included). Returns the new file."""
     flush_edits(tab)
-    stem = tab.doc.path.stem
-    suggested = suggested_folder(tab.doc.path) / f"{stem}-flattened.pdf"
-    target = dialogs.ask_save_path(window, "Save flattened copy", suggested)
-    if target is None:
-        return False
-    if target.resolve() == tab.doc.path.resolve():
-        dialogs.show_error(
-            window,
-            "Choose another name",
-            "A flattened copy can't replace the open document. Pick a different file name.",
+    original = tab.doc.path
+    folder = original.parent
+    if os.access(folder, os.W_OK):
+        target = saving.signed_copy_path(original)
+    else:
+        chosen = dialogs.ask_save_path(
+            window, "Save signed copy", Path.home() / saving.signed_copy_name(original)
         )
-        return False
-    if not _write(window, tab, target, flatten=True):
-        return False
-    window.toast(f"Flattened copy saved: {target.name}")
-    return True
+        if chosen is None:
+            return None
+        folder = chosen.parent
+        target = saving.numbered(chosen)  # never overwrite, even a file picked by hand
+    if not dialogs.confirm_signed_copy(window, target.name):
+        return None
+    request = request_for(tab, flatten=True)
+    QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+    try:
+        for _attempt in range(20):
+            try:
+                saving.save(tab.doc, target, request, overwrite=False)
+                break
+            except saving.TargetExists:
+                # Someone created that name in the meantime: take the next number.
+                target = saving.numbered(target)
+        else:
+            raise saving.SaveError("Couldn't find a free file name for the signed copy.")
+    except saving.SaveError as exc:
+        QApplication.restoreOverrideCursor()
+        dialogs.show_error(
+            window, "Couldn't save the signed copy", f"{exc}\n\nYour original file was not changed."
+        )
+        return None
+    QApplication.restoreOverrideCursor()
+    saved = target
+    window.toast_actions(
+        "Signed copy saved",
+        [
+            ("Open", lambda: window.open_paths([str(saved)])),
+            ("Show in folder", lambda: desktop.show_in_folder(saved)),
+        ],
+    )
+    return saved
 
 
 def confirm_close(window: MainWindow, tab: DocumentTab) -> bool:

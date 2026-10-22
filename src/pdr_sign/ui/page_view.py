@@ -27,6 +27,7 @@ from PySide6.QtWidgets import QFrame, QGraphicsScene, QGraphicsView, QScroller, 
 
 from pdr_sign.services import layout
 from pdr_sign.services.document import Document
+from pdr_sign.ui.action_toast import ActionToast
 from pdr_sign.ui.page_item import PageItem, tile_key, tiles, zoom_key
 from pdr_sign.ui.render_scheduler import RenderRequest, RenderScheduler
 from pdr_sign.ui.theme import ANIMATION_MS, PAGE_GAP, animations_enabled
@@ -80,6 +81,7 @@ class PageView(QGraphicsView):
         self._scroll_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._scroll_anim.valueChanged.connect(lambda v: self.verticalScrollBar().setValue(int(v)))
         self.indicator = ZoomIndicator(self.viewport())
+        self.action_toast = ActionToast(self.viewport())
         scheduler.tile_ready.connect(self._on_tile_ready)
         self._relayout()
 
@@ -267,6 +269,7 @@ class PageView(QGraphicsView):
         if self.zoom_mode:
             self.apply_zoom_mode(self.zoom_mode, osd=False)
         self.indicator.reposition()
+        self.action_toast.reposition()
         self._request_timer.start()
 
     # --- input -----------------------------------------------------------------

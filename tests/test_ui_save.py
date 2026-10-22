@@ -1,4 +1,4 @@
-"""Phase 5 in the UI: Save / Save As / flattened copy, prompts, reload, settings."""
+"""Phase 5 in the UI: Save / Save As, prompts, reload, settings."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import stat
 from collections.abc import Iterator
 from pathlib import Path
 
-import pymupdf
 import pytest
 from PIL import Image
 from PySide6.QtCore import Qt
@@ -198,25 +197,6 @@ def test_failed_save_reports_and_keeps_everything(
     assert form_pdf.read_bytes() == original
     assert errors and "original file was not changed" in errors[0]
     assert window.current_tab() is tab and tab.model.dirty
-
-
-def test_flattened_copy_leaves_the_document_alone(
-    monkeypatch: pytest.MonkeyPatch, window: MainWindow, form_pdf: Path, tmp_path: Path
-) -> None:
-    tab = open_tab(window, form_pdf)
-    fill(tab)
-    target = tmp_path / "flat.pdf"
-    monkeypatch.setattr(dialogs, "ask_save_path", lambda *_: target)
-    window.header.flatten_action.trigger()
-    flat = pymupdf.open(target)
-    assert (
-        sum(1 for p in flat for _ in p.widgets()) == 0
-        and sum(1 for p in flat for _ in p.annots()) == 0
-    )
-    assert "Jane Ndlovu" in flat[0].get_text()
-    assert window.current_tab() is tab and tab.model.dirty  # still unsaved here
-    tab.panel.flatten_button.click()  # the panel's Flatten does the same
-    assert target.exists()
 
 
 def test_xfa_banner(window: MainWindow, xfa_pdf: Path, form_pdf: Path) -> None:

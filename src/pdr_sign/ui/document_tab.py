@@ -38,7 +38,6 @@ class DocumentTab(QWidget):
     external_link = Signal(str)
     dirty_changed = Signal(bool)
     fill_done = Signal()
-    flatten_requested = Signal()
 
     def __init__(
         self,
@@ -133,7 +132,6 @@ class DocumentTab(QWidget):
         self.panel.style_changed.connect(layer.apply_style)
         self.panel.field_activated.connect(self.focus_field)
         self.panel.done.connect(self.fill_done)
-        self.panel.flatten_requested.connect(self.flatten_requested)
         self.panel.sign_requested.connect(self.sign)
         for strip in self.panel.saved.values():
             strip.chosen.connect(self._arm_saved)

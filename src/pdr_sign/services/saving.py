@@ -22,9 +22,10 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
 import shutil
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,45 @@ class SaveError(Exception):
 
 class VerificationError(SaveError):
     """The written file didn't read back as expected; nothing was replaced."""
+
+
+class TargetExists(SaveError):  # noqa: N818 - reads better at call sites
+    """``overwrite=False`` and a file with that name appeared: nothing was written."""
+
+
+SIGNED_SUFFIX = " - signed with PDR-sign"
+_NUMBERED = re.compile(r"^(?P<base>.*) \((?P<n>\d+)\)$")
+
+
+def signed_copy_name(original: Path, number: int = 1) -> str:
+    """``<name> - signed with PDR-sign.pdf``, or ``… (2).pdf`` and up. A signed copy
+    of a signed copy counts up instead of adding the suffix twice."""
+    stem = original.stem
+    match = _NUMBERED.match(stem)
+    if match and match["base"].endswith(SIGNED_SUFFIX):
+        stem = match["base"]
+    if not stem.endswith(SIGNED_SUFFIX):
+        stem += SIGNED_SUFFIX
+    return f"{stem}.pdf" if number == 1 else f"{stem} ({number}).pdf"
+
+
+def free_name(folder: Path, name_for: Callable[[int], str], start: int = 1) -> Path:
+    """The first ``folder / name_for(n)`` (n = start, start+1, …) that doesn't exist."""
+    number = start
+    while (folder / name_for(number)).exists():
+        number += 1
+    return folder / name_for(number)
+
+
+def signed_copy_path(original: Path, folder: Path | None = None) -> Path:
+    return free_name(folder or original.parent, lambda n: signed_copy_name(original, n))
+
+
+def numbered(path: Path) -> Path:
+    """``path`` if it's free, else ``name (2).pdf``, ``name (3).pdf``, … next to it."""
+    if not path.exists():
+        return path
+    return free_name(path.parent, lambda n: f"{path.stem} ({n}){path.suffix}", start=2)
 
 
 @dataclass
@@ -135,10 +175,32 @@ def verify(
         written.close()
 
 
-def save(source: Document, target: Path, request: SaveRequest) -> SaveResult:
+def _create_exclusively(work: Path, target: Path) -> None:
+    """Put ``work`` at ``target`` only if nothing is there: never overwrites, even if
+    a file appears between choosing the name and writing it."""
+    try:
+        os.link(work, target)  # atomic, and fails if target exists
+    except FileExistsError as exc:
+        raise TargetExists(target.name) from exc
+    except OSError:  # file systems without hard links (FAT, some network shares)
+        try:
+            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        except FileExistsError as exc:
+            raise TargetExists(target.name) from exc
+        with os.fdopen(fd, "wb") as out, open(work, "rb") as src:
+            shutil.copyfileobj(src, out)
+            out.flush()
+            os.fsync(out.fileno())
+    work.unlink(missing_ok=True)
+
+
+def save(
+    source: Document, target: Path, request: SaveRequest, overwrite: bool = True
+) -> SaveResult:
     """Write ``request`` on top of ``source``'s file to ``target`` (maybe the same path).
 
-    The live ``source`` document is not modified.
+    The live ``source`` document is not modified. With ``overwrite=False`` an existing
+    ``target`` is never replaced (``TargetExists``).
     """
     origin = source.path
     target = target.expanduser().resolve()
@@ -168,6 +230,9 @@ def save(source: Document, target: Path, request: SaveRequest) -> SaveResult:
         verify(work, source.password, request, pages, images_before)
         with open(work, "rb") as fh:
             os.fsync(fh.fileno())
+        if not overwrite:
+            _create_exclusively(work, target)
+            return SaveResult(target, incremental, pages)
         if target.exists():
             shutil.copy2(target, backup)
         os.replace(work, target)

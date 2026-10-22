@@ -329,6 +329,10 @@ QTreeWidget::item:selected {{ background: {t.hover}; color: {t.text}; }}
 #FieldList::item {{ padding: 4px 4px; border-radius: 4px; }}
 #FieldList::item:selected {{ background: {t.hover}; color: {t.text}; }}
 
+#ActionToast {{
+    background: {t.surface}; border: 1px solid {t.border}; border-radius: {r}px;
+}}
+#ToastAction {{ color: {t.accent}; font-weight: 600; }}
 #Banner {{ background: {t.surface}; border-bottom: 1px solid {t.border}; }}
 
 #ZoomIndicator {{

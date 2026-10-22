@@ -332,3 +332,23 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   label says signature (signature/signed, Handtekening, Unterschrift, Firma,
   Assinatura), but not "… date" fields. Initials also fit "Initials"/"Paraaf" fields.
   Real signature fields take precedence.
+
+## Save signed copy (replaces Flatten)
+
+- **Icon:** Lucide "file-check" (chosen from file-lock, save + lock badge and file-check:
+  crisp at 18 px, and reads as "finished copy" without suggesting protection).
+- **One action, three ways in:** a header button right of Save, the overflow menu's
+  "Save signed copy…", and nothing in the panel (its Flatten… button is gone).
+- **It always writes a new file**, `<name> - signed with PDR-sign.pdf`, then
+  `… (2).pdf`, `… (3).pdf`. A signed copy of a signed copy counts up instead of
+  stacking suffixes. It's never written over an existing file: the final step
+  creates the file exclusively (`os.link`, or `O_CREAT | O_EXCL` where hard links
+  aren't supported), so even a file that appears mid-save is left alone, and the
+  next number is used. If the original's folder isn't writable, PDR asks where to
+  save (suggesting the home folder) and numbers a chosen name that's taken.
+- **The confirmation** uses the owner's exact wording, with Cancel as the default
+  (and Escape). The feature never claims protection: no "secured", "encrypted" or
+  "tamper-proof" (a test checks).
+- **Content:** a flattened rewrite, as before. The original tab stays open, editable
+  and unsaved. Afterwards a toast "Signed copy saved" offers Open (a new tab) and Show
+  in folder (freedesktop FileManager1 via `dbus-send`, else just the folder).

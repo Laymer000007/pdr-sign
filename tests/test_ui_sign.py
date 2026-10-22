@@ -403,8 +403,24 @@ def test_signature_fits_into_a_text_field_signature_line(
     layer.arm_image("signature", SIG)
     _, centre = field_centre(tab, "Handtekening van applikant")
     pos = tab.view.mapFromScene(tab.view.page_items[0].mapToScene(centre))
-    qtbot.mouseMove(tab.view.viewport(), pos)
-    assert tab.view.viewport().cursor().shape() == Qt.CursorShape.CrossCursor  # not a text cursor
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QMouseEvent
+
+    vp = tab.view.viewport()
+    # A delivered move event (qtbot.mouseMove moves the real pointer on X11 and the
+    # event may arrive late), hovering the text field with the signature armed.
+    QApplication.sendEvent(
+        vp,
+        QMouseEvent(
+            QEvent.Type.MouseMove,
+            QPointF(pos),
+            QPointF(vp.mapToGlobal(pos)),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        ),
+    )
+    assert vp.cursor().shape() == Qt.CursorShape.CrossCursor  # not a text cursor
     qtbot.mouseClick(tab.view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
     (item,) = tab.model.items.values()
     assert (
