@@ -18,6 +18,8 @@ of each phase.
 
 ## Phase 6 – Packaging and release (checklist additions)
 
+- [ ] **Before v1.0.0 release:** final app icon, trademark check, 2 weeks of daily
+      use, VM checks per `docs/TESTING.md`.
 - [ ] **Make the GitHub repository public, just before the release.** It stays private
       until then. Afterwards, check that the About dialog's "Source code" link
       (`SOURCE_URL`) opens without a login, as AGPL requires.

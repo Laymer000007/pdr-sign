@@ -1,14 +1,13 @@
 name: Packages
 
 # Builds the AppImage, .deb and snap, lints them and runs PDR's self-test inside each.
-# Publishes nothing: release.yml calls this, and it can be run by hand (Actions tab,
-# "Run workflow") to get the three packages as downloadable artifacts.
+# Publishes nothing. Runs only on version tags (release.yml calls it) and by hand
+# (Actions tab, "Run workflow") to get the three packages as downloadable artifacts.
+# Lint and tests on every push/PR are ci.yml's job.
 
 on:
   workflow_dispatch:
-  workflow_call:
-  push:
-    branches: ["packaging/**"]  # work-in-progress packaging branches
+  workflow_call:  # from release.yml, on v* tags
 
 permissions:
   contents: read
