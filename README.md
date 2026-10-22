@@ -6,7 +6,39 @@ PDR is a calm, content-first PDF viewer: continuous scrolling, thumbnails, outli
 search, printing, and a Fill & Sign panel for filling forms, ticking boxes and placing
 your signature, all without leaving the document.
 
-> Status: early development. Viewing, search, printing, form filling, signing, stamps and saving work; packaging is next.
+![Fill & Sign with a signature and a company stamp](docs/screenshots/fill-sign-light.png)
+
+| Reading | Searching | Dark theme |
+|---|---|---|
+| ![Reading](docs/screenshots/viewer-light.png) | ![Searching](docs/screenshots/search-light.png) | ![Dark](docs/screenshots/fill-sign-dark.png) |
+
+## Features
+
+- **Read:** continuous scroll, crisp HiDPI rendering, thumbnails, outline, links,
+  full-text search, text selection and copy, printing, tabs, recent files.
+- **Fill:** type into PDF form fields of every kind; add text, ✓, ✗, dots, lines and
+  dates anywhere on the page; undo and redo everything.
+- **Sign:** draw a signature, type it in a handwriting font, or clean up a phone photo
+  of it; the same for initials. Saved signatures stay on your computer.
+- **Stamp:** upload a scan or photo of a company stamp — the background is removed and
+  its colours kept; place it at its real size, turn and fade it.
+- **Save:** your entries stay editable in PDR and visible in every PDF reader.
+  **Save signed copy** writes a new file next to the original with everything fixed
+  into the pages; the original stays unchanged for corrections.
+
+## Install
+
+Download from the [Releases](https://github.com/Laymer000007/pdr-sign/releases) page and
+check the file against `SHA256SUMS`.
+
+| Format | Install | Remove |
+|---|---|---|
+| Snap | `sudo snap install pdr-sign` (once in the Snap Store) or `sudo snap install --dangerous pdr-sign_*.snap` | `sudo snap remove pdr-sign` |
+| .deb (Ubuntu 22.04+) | `sudo apt install ./pdr-sign_*_amd64.deb` | `sudo apt remove pdr-sign` |
+| AppImage | `chmod +x PDR-sign-*-x86_64.AppImage` and run it | delete the file |
+
+To check an installed copy, `pdr-sign --self-test ~/pdr-selftest` saves, signs and
+prints test files into that folder and reports what worked.
 
 ## Run from source
 
@@ -25,6 +57,10 @@ uv pip install --python .venv -e ".[dev]"
 .venv/bin/mypy
 .venv/bin/pytest -m "not slow"
 ```
+
+Packaging: `pyinstaller packaging/pdr-sign.spec`, then `packaging/appimage/build.sh` and
+`packaging/deb/build.sh`; the snap builds in CI from `packaging/snap/snapcraft.yaml`
+(`.github/workflows/packages.yml`). Manual release checks: [docs/TESTING.md](docs/TESTING.md).
 
 ## Licence
 

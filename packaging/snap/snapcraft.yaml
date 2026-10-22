@@ -1,0 +1,75 @@
+# Snap for the Ubuntu App Center. CI copies this file to snap/snapcraft.yaml at the
+# repository root (snapcraft builds from there) and runs snapcraft / action-build.
+name: pdr-sign
+base: core24
+adopt-info: pdr-sign
+grade: stable
+confinement: strict
+license: AGPL-3.0-or-later
+icon: packaging/linux/icons/hicolor/scalable/apps/io.github.Laymer000007.PdrSign.svg
+
+platforms:
+  amd64:
+
+apps:
+  pdr-sign:
+    command: bin/pdr-sign
+    desktop: usr/share/applications/io.github.Laymer000007.PdrSign.desktop
+    common-id: io.github.Laymer000007.PdrSign
+    # gnome: GPU (mesa-2404), fonts, themes, Wayland and desktop-launch for core24.
+    # PySide6's wheels bring their own Qt, so a Qt extension would only add a second Qt.
+    extensions: [gnome]
+    plugs:
+      - home
+      - removable-media
+      - cups          # printing via the CUPS snap, when installed
+      - cups-control  # printing via the system CUPS (Ubuntu desktop); needs a store grant to auto-connect
+      - network
+      - desktop
+      - desktop-legacy
+      - wayland
+      - x11
+      - opengl
+    environment:
+      QT_QPA_PLATFORMTHEME: xdgdesktopportal  # file dialogs through the portal
+      # Confinement blocks the a11y bus "is a screen reader on?" query; use the bus anyway.
+      QT_LINUX_ACCESSIBILITY_ALWAYS_ON: "1"
+
+parts:
+  pdr-sign:
+    plugin: python
+    source: .
+    python-packages: []
+    parse-info:
+      - usr/share/metainfo/io.github.Laymer000007.PdrSign.metainfo.xml
+    stage-packages:
+      # Qt's xcb platform plugin (X11 sessions) needs these at runtime.
+      - libxcb-cursor0
+      - libxcb-icccm4
+      - libxcb-image0
+      - libxcb-keysyms1
+      - libxcb-render-util0
+      - libxcb-shape0
+      - libxcb-xinerama0
+      - libxcb-xkb1
+      - libxkbcommon-x11-0
+      - libcups2t64
+    override-build: |
+      craftctl default
+      SITE="$CRAFT_PART_INSTALL/lib/python3.12/site-packages"
+      # PyMuPDF 2.0 declares its layout/LLM add-ons as dependencies; PDR never uses
+      # them (the test suite passes with them blocked), so leave ~100 MB out.
+      rm -rf "$SITE"/numpy "$SITE"/numpy.libs "$SITE"/numpy-*.dist-info \
+             "$SITE"/onnxruntime "$SITE"/onnxruntime-*.dist-info \
+             "$SITE"/networkx "$SITE"/networkx-*.dist-info \
+             "$SITE"/pymupdf4llm "$SITE"/pymupdf_layout "$SITE"/sympy "$SITE"/mpmath
+      APP_ID=io.github.Laymer000007.PdrSign
+      install -Dm644 packaging/linux/$APP_ID.desktop \
+        "$CRAFT_PART_INSTALL/usr/share/applications/$APP_ID.desktop"
+      install -Dm644 packaging/linux/$APP_ID.metainfo.xml \
+        "$CRAFT_PART_INSTALL/usr/share/metainfo/$APP_ID.metainfo.xml"
+      mkdir -p "$CRAFT_PART_INSTALL/usr/share/icons"
+      cp -r packaging/linux/icons/hicolor "$CRAFT_PART_INSTALL/usr/share/icons/"
+      # The desktop file names its icon by theme name; point it into the snap.
+      sed -i "s|^Icon=.*|Icon=\${SNAP}/usr/share/icons/hicolor/scalable/apps/$APP_ID.svg|" \
+        "$CRAFT_PART_INSTALL/usr/share/applications/$APP_ID.desktop"

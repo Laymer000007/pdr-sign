@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -12,8 +13,9 @@ from PySide6.QtGui import QDesktopServices
 
 def show_in_folder(path: Path) -> None:
     """Open the file manager with ``path`` selected (freedesktop FileManager1), or
-    just open its folder when that interface isn't there."""
-    sender = shutil.which("dbus-send")
+    just open its folder when that interface isn't there. A strict snap may not call
+    FileManager1, so there the folder opens through the desktop portal."""
+    sender = None if "SNAP_NAME" in os.environ else shutil.which("dbus-send")
     if sender is not None:
         try:
             subprocess.run(
@@ -22,6 +24,7 @@ def show_in_folder(path: Path) -> None:
                     "--session",
                     "--dest=org.freedesktop.FileManager1",
                     "--type=method_call",
+                    "--print-reply",  # wait, so a refused or missing service falls back
                     "/org/freedesktop/FileManager1",
                     "org.freedesktop.FileManager1.ShowItems",
                     f"array:string:{path.resolve().as_uri()}",

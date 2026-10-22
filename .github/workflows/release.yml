@@ -1,0 +1,83 @@
+name: Release
+
+# Runs only when a version tag is pushed (git tag v1.0.0 && git push origin v1.0.0).
+# Builds and checks all packages (packages.yml), then creates the GitHub Release with
+# the AppImage (+ .zsync), the .deb, the snap and SHA256SUMS. Uploads the snap to the
+# Snap Store's edge channel only when the SNAPCRAFT_STORE_CREDENTIALS secret exists.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    uses: ./.github/workflows/packages.yml
+
+  release:
+    name: GitHub Release
+    needs: packages
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Tag matches the app version
+        run: |
+          version="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/pdr_sign/__init__.py)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match __version__ $version" >&2
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: release
+        run: sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --title "PDR $GITHUB_REF_NAME" \
+            --notes "PDR – Portable Document Read and Sign $GITHUB_REF_NAME. Packages: AppImage (any distribution), .deb (Ubuntu 22.04 and newer), snap. Verify downloads with SHA256SUMS."
+
+  snap-store:
+    name: Snap Store (edge)
+    needs: packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+    steps:
+      - name: Skip without store credentials
+        if: env.STORE_CREDENTIALS == ''
+        run: echo "SNAPCRAFT_STORE_CREDENTIALS isn't set; not uploading to the Snap Store."
+
+      - uses: actions/download-artifact@v8
+        if: env.STORE_CREDENTIALS != ''
+        with:
+          name: snap
+          path: snap
+
+      - name: Find the snap
+        if: env.STORE_CREDENTIALS != ''
+        id: snap
+        run: echo "file=$(ls snap/*.snap)" >> "$GITHUB_OUTPUT"
+
+      - uses: snapcore/action-publish@v1
+        if: env.STORE_CREDENTIALS != ''
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.snap.outputs.file }}
+          release: edge

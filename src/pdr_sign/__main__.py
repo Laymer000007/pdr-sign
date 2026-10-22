@@ -4,6 +4,11 @@ import sys
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "--self-test":
+        from pdr_sign import selftest
+
+        return selftest.main(sys.argv[2:])
+
     from pdr_sign.services.instance import file_args, send_to_running
 
     files = file_args(sys.argv)

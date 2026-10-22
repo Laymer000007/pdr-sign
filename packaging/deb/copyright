@@ -1,0 +1,37 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: PDR – Portable Document Read and Sign
+Upstream-Contact: https://github.com/Laymer000007/pdr-sign/issues
+Source: https://github.com/Laymer000007/pdr-sign
+
+Files: *
+Copyright: 2026 Laymer000007 and PDR contributors
+License: AGPL-3.0-or-later
+ This program is free software: you can redistribute it and/or modify it under
+ the terms of the GNU Affero General Public License as published by the Free
+ Software Foundation, either version 3 of the License, or (at your option) any
+ later version. The full text is in the source repository (LICENSE) and at
+ https://www.gnu.org/licenses/agpl-3.0.txt.
+
+Files: opt/pdr-sign/_internal/PySide6/* opt/pdr-sign/_internal/shiboken6/*
+Copyright: The Qt Company Ltd.
+License: LGPL-3.0-only
+ Qt for Python and the Qt libraries, used unmodified as shared libraries.
+ See https://www.gnu.org/licenses/lgpl-3.0.txt.
+
+Files: opt/pdr-sign/_internal/pymupdf/*
+Copyright: Artifex Software, Inc.
+License: AGPL-3.0-or-later
+ PyMuPDF and MuPDF.
+
+Files: opt/pdr-sign/_internal/PIL/* opt/pdr-sign/_internal/pillow.libs/*
+Copyright: Jeffrey A. Clark and contributors
+License: MIT-CMU
+
+Files: opt/pdr-sign/_internal/pdr_sign/resources/fonts/*
+Copyright: The Inter, Caveat and Dancing Script authors
+License: OFL-1.1
+ SIL Open Font License 1.1; licence texts ship next to the fonts.
+
+Files: opt/pdr-sign/_internal/pdr_sign/resources/icons/*
+Copyright: Lucide Contributors
+License: ISC

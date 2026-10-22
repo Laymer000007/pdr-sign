@@ -1,0 +1,20 @@
+Package: pdr-sign
+Version: @VERSION@
+Section: graphics
+Priority: optional
+Architecture: amd64
+Maintainer: corne <332404964+Laymer000007@users.noreply.github.com>
+Installed-Size: @SIZE@
+Depends: libc6 (>= 2.35), libgl1, libegl1, libfontconfig1, libxkbcommon0, libdbus-1-3, libwayland-client0
+Recommends: xdg-desktop-portal, xdg-desktop-portal-gnome | xdg-desktop-portal-gtk | xdg-desktop-portal-kde
+Homepage: https://github.com/Laymer000007/pdr-sign
+Description: Fast PDF reader with Fill & Sign
+ PDR – Portable Document Read and Sign is a calm, fast PDF reader with
+ continuous scrolling, thumbnails, outline, search, text selection and
+ printing, following the desktop's light or dark theme.
+ .
+ Fill & Sign completes forms without leaving the reader: form fields, text,
+ ticks, crosses, dots, lines and dates, plus signatures, initials and company
+ stamps drawn, typed or cleaned up from a phone photo. Save keeps entries
+ editable; Save signed copy writes a new file with everything locked into
+ the pages.

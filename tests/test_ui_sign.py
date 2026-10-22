@@ -479,3 +479,18 @@ def test_without_a_tool_fields_still_take_clicks(
     assert tab.model.items == {}
     if window.isActiveWindow():
         assert widget.hasFocus()
+
+
+def test_sign_here_box_hides_while_signed(window: MainWindow, form_pdf: Path) -> None:
+    tab = open_tab(window, form_pdf)
+    fields = tab.view.field_layer
+    layer = tab.view.fill_layer
+    assert fields is not None and layer is not None
+    (hint,) = fields.sign_here
+    assert hint.isVisible()
+    layer.sign_field(hint.field, SIG)
+    assert not hint.isVisible()
+    from tests.conftest import trigger_shortcut
+
+    trigger_shortcut(window, "Ctrl+Z")
+    assert hint.isVisible()

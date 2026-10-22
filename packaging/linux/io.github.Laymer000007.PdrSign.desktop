@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=PDR – Portable Document Read and Sign
+GenericName=PDF Reader
+Comment=Fast PDF reader with Fill & Sign
+Exec=pdr-sign %U
+TryExec=pdr-sign
+Icon=io.github.Laymer000007.PdrSign
+Terminal=false
+StartupNotify=true
+StartupWMClass=pdr-sign
+MimeType=application/pdf;
+Categories=Office;Viewer;
+Keywords=PDF;reader;viewer;fill;form;sign;signature;stamp;
+Actions=new-window;
+
+[Desktop Action new-window]
+Name=Open a PDF
+Exec=pdr-sign

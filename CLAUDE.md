@@ -19,7 +19,17 @@ uv venv --python 3.12 .venv && uv pip install --python .venv -e ".[dev]"
 .venv/bin/pytest                               # everything, including slow perf tests
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest     # headless (CI uses xvfb-run)
 .venv/bin/python tools/fill_check.py some.pdf  # fill every field like Save does; copy in build/verify
+
+# packaging (Phase 6); the snap only builds in CI (.github/workflows/packages.yml)
+.venv/bin/pyinstaller --noconfirm --clean --log-level WARN --workpath build/pyinstaller --distpath dist packaging/pdr-sign.spec
+packaging/appimage/build.sh                    # needs appimagetool on PATH (or APPIMAGETOOL=)
+packaging/deb/build.sh                         # dist/pdr-sign_<version>_amd64.deb
+pdr-sign --self-test DIR [--show-in-folder]    # save, signed copies, print-to-PDF inside a package
+QT_QPA_PLATFORM=offscreen .venv/bin/python packaging/tools/store_screenshots.py  # docs/screenshots
 ```
+
+Releases: pushing a `v*` tag runs `release.yml` (GitHub Release + Snap Store edge if the
+`SNAPCRAFT_STORE_CREDENTIALS` secret exists). Never tag or publish without the owner.
 
 Saved signatures are personal data: keep their folder 0700 and files 0600, and never log,
 upload or commit them.

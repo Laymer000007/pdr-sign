@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 from functools import cache
 
 from PySide6.QtGui import QFont, QFontDatabase, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication
 
-from pdr_sign import APP_ID, APP_NAME, APP_SHORT_NAME, __version__
+from pdr_sign import APP_COMMAND, APP_ID, APP_NAME, APP_SHORT_NAME, __version__
 from pdr_sign.resources import APP_ICON, FONTS_DIR, SIGNATURE_FONT_FILES, UI_FONT_FILES
 from pdr_sign.services import settings as settings_service
 from pdr_sign.services.recent import RecentFiles
@@ -86,8 +87,23 @@ def build_window(
     return window
 
 
+def desktop_file_name() -> str:
+    """The desktop file this process belongs to (without ``.desktop``).
+
+    Wayland matches windows to launchers by it, and the desktop portal registers the
+    app under it. Inside a snap the launcher is ``<snap>_<app>.desktop``.
+    """
+    snap = os.environ.get("SNAP_NAME")
+    return f"{snap}_{APP_COMMAND}" if snap else APP_ID
+
+
 def run(argv: Sequence[str], files: list[str]) -> int:
-    QGuiApplication.setDesktopFileName(APP_ID)
+    # Native file dialogs through the desktop portal (works in the snap, the AppImage
+    # and the .deb alike, without bundling GTK).
+    os.environ.setdefault("QT_QPA_PLATFORMTHEME", "xdgdesktopportal")
+    # Qt's Wayland text-input plugin logs a harmless warning on every focus change.
+    os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false")
+    QGuiApplication.setDesktopFileName(desktop_file_name())
     app = QApplication(list(argv))
     user_settings = settings_service.load()
     controller = configure(app, user_settings)

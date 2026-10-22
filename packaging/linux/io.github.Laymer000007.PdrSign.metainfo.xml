@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.Laymer000007.PdrSign</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+  <name>PDR – Portable Document Read and Sign</name>
+  <summary>Fast PDF reader with Fill &amp; Sign</summary>
+  <developer id="io.github.laymer000007">
+    <name>Laymer000007</name>
+  </developer>
+  <description>
+    <p>
+      PDR is a calm, fast PDF reader for the Linux desktop. Documents open in a
+      continuous, smoothly scrolling view with thumbnails, the outline, full-text
+      search, text selection and printing, and it follows your light or dark theme.
+    </p>
+    <p>
+      Fill &amp; Sign lets you complete forms without leaving the reader: type into
+      form fields, add text, ticks, crosses, dots, lines and dates anywhere on the page,
+      and place your signature, initials or a company stamp. Draw a signature with a
+      touchpad or mouse, type it in a handwriting font, or clean up a phone photo of it
+      on paper. Saved signatures and stamps stay on your computer.
+    </p>
+    <p>
+      Save keeps your entries editable in PDR and visible in every PDF reader. Save
+      signed copy writes a new file next to the original with everything locked into
+      the pages, while the original stays unchanged for corrections.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.Laymer000007.PdrSign.desktop</launchable>
+  <provides>
+    <binary>pdr-sign</binary>
+    <mediatype>application/pdf</mediatype>
+  </provides>
+  <url type="homepage">https://github.com/Laymer000007/pdr-sign</url>
+  <url type="vcs-browser">https://github.com/Laymer000007/pdr-sign</url>
+  <url type="bugtracker">https://github.com/Laymer000007/pdr-sign/issues</url>
+  <categories>
+    <category>Office</category>
+    <category>Viewer</category>
+  </categories>
+  <keywords>
+    <keyword>PDF</keyword>
+    <keyword>form</keyword>
+    <keyword>signature</keyword>
+    <keyword>stamp</keyword>
+  </keywords>
+  <branding>
+    <color type="primary" scheme_preference="light">#C7D2FE</color>
+    <color type="primary" scheme_preference="dark">#312E81</color>
+  </branding>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Reading with thumbnails</caption>
+      <image>https://raw.githubusercontent.com/Laymer000007/pdr-sign/main/docs/screenshots/viewer-light.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Fill &amp; Sign with a signature and a company stamp</caption>
+      <image>https://raw.githubusercontent.com/Laymer000007/pdr-sign/main/docs/screenshots/fill-sign-light.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Searching a document</caption>
+      <image>https://raw.githubusercontent.com/Laymer000007/pdr-sign/main/docs/screenshots/search-light.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Dark theme</caption>
+      <image>https://raw.githubusercontent.com/Laymer000007/pdr-sign/main/docs/screenshots/fill-sign-dark.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <releases>
+    <release version="1.0.0" date="2026-10-22">
+      <description>
+        <p>First release: reading, search, printing, form filling, signatures, initials,
+        company stamps, saving and signed copies.</p>
+      </description>
+    </release>
+  </releases>
+</component>

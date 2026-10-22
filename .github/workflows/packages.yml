@@ -1,0 +1,143 @@
+name: Packages
+
+# Builds the AppImage, .deb and snap, lints them and runs PDR's self-test inside each.
+# Publishes nothing: release.yml calls this, and it can be run by hand (Actions tab,
+# "Run workflow") to get the three packages as downloadable artifacts.
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: ["packaging/**"]  # work-in-progress packaging branches
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    name: AppImage + .deb (ubuntu-22.04)
+    runs-on: ubuntu-22.04  # oldest supported glibc, so the bundle runs on 22.04 and newer
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends zsync desktop-file-utils appstream \
+            libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libfontconfig1 libdbus-1-3
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Validate the desktop file
+        # (AppStream is validated on 24.04 below: 22.04's appstream 0.15 predates the
+        # vcs-browser URL type and the <developer> tag.)
+        run: desktop-file-validate packaging/linux/io.github.Laymer000007.PdrSign.desktop
+
+      - name: PyInstaller bundle
+        run: pyinstaller --noconfirm --clean --log-level WARN --workpath build/pyinstaller --distpath dist packaging/pdr-sign.spec
+
+      - name: Self-test the bundle
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: dist/pdr-sign/pdr-sign --self-test "$RUNNER_TEMP/selftest-bundle"
+
+      - name: AppImage
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download continuous --repo AppImage/appimagetool \
+            --pattern "appimagetool-x86_64.AppImage" --dir "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/appimagetool-x86_64.AppImage"
+          # Runners have no FUSE: unpack the tool and run it from the unpacked tree.
+          (cd "$RUNNER_TEMP" && ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null)
+          APPIMAGETOOL="$RUNNER_TEMP/squashfs-root/AppRun" packaging/appimage/build.sh
+
+      - name: .deb
+        run: packaging/deb/build.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bundle-packages
+          path: |
+            dist/*.AppImage
+            dist/*.AppImage.zsync
+            dist/*.deb
+          if-no-files-found: error
+
+  snap:
+    name: Snap
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Put snapcraft.yaml where snapcraft looks
+        run: mkdir -p snap && cp packaging/snap/snapcraft.yaml snap/snapcraft.yaml
+      - uses: snapcore/action-build@v1
+        id: build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: snap
+          path: ${{ steps.build.outputs.snap }}
+          if-no-files-found: error
+
+  check:
+    name: Install and self-test (${{ matrix.os }})
+    needs: [bundle, snap]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: packages
+          merge-multiple: true
+
+      - uses: actions/checkout@v7
+        if: matrix.os == 'ubuntu-24.04'
+        with:
+          path: src-checkout
+
+      - name: Validate AppStream metainfo
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends appstream
+          appstreamcli validate --no-net src-checkout/packaging/linux/io.github.Laymer000007.PdrSign.metainfo.xml
+
+      - name: lintian (errors fail the build)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends lintian
+          lintian --fail-on error --no-tag-display-limit packages/*.deb
+
+      - name: .deb installs and runs
+        run: |
+          sudo apt-get install -y --no-install-recommends ./packages/*.deb
+          test -f /usr/share/applications/io.github.Laymer000007.PdrSign.desktop
+          pdr-sign --self-test "$RUNNER_TEMP/selftest-deb"
+          sudo apt-get remove -y pdr-sign
+
+      - name: AppImage runs
+        run: |
+          chmod +x packages/*.AppImage
+          packages/*.AppImage --appimage-extract-and-run --self-test "$RUNNER_TEMP/selftest-appimage"
+
+      - name: Snap installs and runs
+        run: |
+          sudo snap install --dangerous packages/*.snap
+          sudo snap connect pdr-sign:removable-media
+          sudo snap connect pdr-sign:cups-control
+          pdr-sign --self-test "$HOME/selftest-snap"
+          sudo snap remove pdr-sign

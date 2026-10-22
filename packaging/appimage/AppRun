@@ -1,0 +1,4 @@
+#!/bin/sh
+# AppImage entry point: run the bundled PDR with the files it was given.
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/lib/pdr-sign/pdr-sign" "$@"

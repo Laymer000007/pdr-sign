@@ -1,0 +1,11 @@
+# PDR ships as a self-contained PyInstaller bundle in /opt (by design, outside the
+# Debian archive): it carries its own Python, Qt and MuPDF.
+pdr-sign: dir-or-file-in-opt *
+pdr-sign: embedded-library *
+pdr-sign: shared-library-lacks-prerequisites *
+pdr-sign: hardening-no-fortify-functions *
+pdr-sign: unstripped-binary-or-object *
+pdr-sign: binary-or-shlib-defines-rpath *
+pdr-sign: spelling-error-in-binary *
+pdr-sign: library-not-linked-against-libc *
+pdr-sign: shared-library-lacks-version *

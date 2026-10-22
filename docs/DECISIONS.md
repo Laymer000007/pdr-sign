@@ -352,3 +352,39 @@ Choices made where the build spec was silent or needed interpretation. Newest la
 - **Content:** a flattened rewrite, as before. The original tab stays open, editable
   and unsaved. Afterwards a toast "Signed copy saved" offers Open (a new tab) and Show
   in folder (freedesktop FileManager1 via `dbus-send`, else just the folder).
+
+## Phase 6: packaging
+
+- **One PyInstaller bundle feeds the AppImage and the .deb**, built on Ubuntu 22.04
+  (oldest supported glibc). It excludes what PyMuPDF 2.0 pulls in but PDR never uses
+  (numpy, onnxruntime, networkx, pymupdf4llm/layout), Qt's GTK theme plugin (it drags
+  in GTK) and unused Qt platform/image plugins, and is stripped: 323 → 211 MB unpacked,
+  AppImage 84 MB, .deb 67 MB. Remaining size is MuPDF (36 MB), ICU (32 MB), Qt, Python.
+- **.deb** installs to `/opt/pdr-sign` with a `/usr/bin/pdr-sign` symlink; lintian
+  overrides cover the bundled libraries in `/opt`.
+- **Snap** uses core24, the `python` plugin and the `gnome` extension (strict), built
+  in CI with `snapcore/action-build` (no LXD locally). Plugs: home, removable-media,
+  cups, network (for links), desktop, wayland, x11, opengl.
+- **File dialogs go through the portal** (`QT_QPA_PLATFORMTHEME=xdgdesktopportal`,
+  set as a default in `app.run` and in the snap), so they work under confinement and
+  match the desktop.
+- **Desktop file name** is the app ID, or `<SNAP_NAME>_pdr-sign` inside a snap, so
+  GNOME matches windows to the menu entry and the "Could not register app ID" warning
+  goes away.
+- **`--self-test DIR`** runs the real save pipeline, two signed copies and print-to-PDF
+  inside the package, so CI can check each package on each Ubuntu release without
+  clicking.
+- **Release** runs only on a `v*` tag; it checks the tag matches `__version__`, writes
+  SHA256SUMS and creates the GitHub Release. Snap Store upload (edge) runs only when
+  the `SNAPCRAFT_STORE_CREDENTIALS` secret exists.
+- **"Sign here" boxes hide** while a signature or initials sits on them (found while
+  making screenshots: the dashed box showed through around a placed signature).
+- **Show in folder in the snap:** strict confinement refuses FileManager1.ShowItems, so
+  inside a snap PDR opens the folder through the portal instead (no file selected).
+  Outside, `dbus-send --print-reply` waits for the answer, so a refused or missing
+  file manager falls back to opening the folder (it used to fail silently).
+- **Snap printing** plugs both `cups` (the CUPS snap) and `cups-control` (the system
+  CUPS that Ubuntu desktops run). `cups-control` needs a Snap Store auto-connect grant;
+  until then: `snap connect pdr-sign:cups-control`.
+- **Snap accessibility:** `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`, because confinement
+  blocks Qt's "is a screen reader on?" query on the a11y bus.

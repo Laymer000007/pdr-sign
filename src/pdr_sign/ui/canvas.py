@@ -22,7 +22,8 @@ from pdr_sign.services.text import word_at
 from pdr_sign.ui.fill_layer import FillLayer
 from pdr_sign.ui.fill_model import FillModel
 from pdr_sign.ui.overlay.base import OverlayGraphic
-from pdr_sign.ui.overlay.field_widgets import FieldColors, FieldLayer, FieldProxy, ToggleField
+from pdr_sign.ui.overlay.field_paint import FieldColors
+from pdr_sign.ui.overlay.field_widgets import FieldLayer, FieldProxy, ToggleField
 from pdr_sign.ui.page_item import PageItem
 from pdr_sign.ui.page_view import PageView
 from pdr_sign.ui.render_scheduler import RenderScheduler

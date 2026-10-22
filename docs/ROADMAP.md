@@ -23,3 +23,10 @@ of each phase.
       (`SOURCE_URL`) opens without a login, as AGPL requires.
 - [ ] Under the strict snap, confirm single instance works: a second launch hands over
       its files through `$XDG_RUNTIME_DIR` (`/run/user/<uid>/snap.pdr-sign`).
+- [x] PyInstaller bundle, AppImage (+ zsync), .deb, snap (core24, strict); CI builds,
+      lints and self-tests all three on Ubuntu 22.04 and 24.04 (`packages.yml`).
+- [x] Desktop file, AppStream metainfo (validated), hicolor icons, screenshots.
+- [x] Release workflow ready (`release.yml`, runs on a `v*` tag).
+- [ ] Owner: Snapcraft account, `snapcraft register pdr-sign`, store credentials
+      secret, make the repo public, tag `v1.0.0`; manual checks in `docs/TESTING.md`.
+- [ ] Bundle is 211 MB unpacked (target was ~150 MB): MuPDF, ICU and Qt dominate.

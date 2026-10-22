@@ -2,7 +2,7 @@
 
 from typing import Final
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 # GitHub owner. Packaging files are named and filled with the same value.
 OWNER: Final = "Laymer000007"
