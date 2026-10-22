@@ -103,11 +103,16 @@ def test_check_tool_is_named_check(window: MainWindow, text_pdf: Path) -> None:
     assert all("Checkmark" not in (label + hint) for _, label, _, hint in TOOL_BUTTONS)
 
 
-def test_tool_tiles_are_identical_three_per_row(window: MainWindow, text_pdf: Path) -> None:
+def test_tool_tiles_are_identical_three_per_row(
+    qtbot: QtBot, window: MainWindow, text_pdf: Path
+) -> None:
+    from pdr_sign.ui.theme import PANEL_WIDTH
+
     window.open_paths([str(text_pdf)])
     window.set_fill_mode(True)
     tab = window.current_tab()
     assert tab is not None
+    qtbot.waitUntil(lambda: tab.panel.width() == PANEL_WIDTH, timeout=2000)  # slid in
     buttons = [tab.panel._buttons[t] for t, *_ in TOOL_BUTTONS]
     assert [t for t, *_ in TOOL_BUTTONS] == [
         "text",
@@ -143,3 +148,44 @@ def test_saved_thumbnails_sit_on_paper_tiles(window: MainWindow, text_pdf: Path)
     assert tile.objectName() == "SavedSignature"
     # Paper white in both themes, even inside the dark panel.
     assert centre_pixel(tile).name() == QColor(theme.LIGHT.paper).name()
+
+
+def test_fill_toggle_really_hides_the_panel(
+    qtbot: QtBot, window: MainWindow, text_pdf: Path
+) -> None:
+    """Regression: the panel's fixed width pinned its minimum at 280 px, so "hiding"
+    (maximum width -> 0) left it on screen while the icon lost its accent."""
+    from PySide6.QtCore import Qt
+
+    from pdr_sign.ui.theme import PANEL_WIDTH
+
+    window.open_paths([str(text_pdf)])
+    tab = window.current_tab()
+    assert tab is not None
+    button = window.header.fill_button
+    accent = QColor(window.tokens.accent).name()
+
+    def shown() -> bool:
+        return tab.panel.isVisible() and tab.panel.width() == PANEL_WIDTH
+
+    def hidden() -> bool:
+        return not tab.panel.isVisible() and tab.panel.width() == 0
+
+    def check(open_: bool) -> None:
+        qtbot.waitUntil(shown if open_ else hidden, timeout=2000)
+        assert button.isChecked() is open_ and window.fill_mode is open_
+        assert (centre_pixel(button).name() == accent) is open_
+
+    for expected in (True, False, True, False):  # hide -> show -> hide, by real clicks
+        qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
+        check(expected)
+    trigger_shortcut(window, "Ctrl+E")
+    check(True)
+    trigger_shortcut(window, "Ctrl+E")
+    check(False)
+    qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
+    check(True)
+    qtbot.mouseClick(tab.panel.done_button, Qt.MouseButton.LeftButton)
+    check(False)
+    qtbot.mouseClick(button, Qt.MouseButton.LeftButton)  # and it still opens afterwards
+    check(True)

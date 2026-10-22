@@ -62,7 +62,11 @@ class FillSignPanel(QWidget):
         super().__init__(parent)
         self.setObjectName("FillSignPanel")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setFixedWidth(PANEL_WIDTH)
+        # Not setFixedWidth: that also pins the *minimum* width, and the layout honours
+        # a minimum over a maximum, so collapsing the panel (maximum -> 0) did nothing.
+        # The content below has the fixed width; the panel itself may shrink to 0.
+        self.setMinimumWidth(0)
+        self.setMaximumWidth(PANEL_WIDTH)
         self._buttons: dict[str, QToolButton] = {}
         self._tokens: Tokens = LIGHT
 
@@ -145,6 +149,7 @@ class FillSignPanel(QWidget):
         # Everything but Done scrolls, so a short window still reaches every section.
         content = QWidget()
         content.setObjectName("FillSignContent")
+        content.setFixedWidth(PANEL_WIDTH)
         column = QVBoxLayout(content)
         column.setContentsMargins(SPACING * 2, SPACING * 2, SPACING * 2, SPACING)
         column.setSpacing(SPACING * 1 + SPACING // 2)

@@ -56,6 +56,7 @@ class DocumentTab(QWidget):
         self.view.attach_fill(self.model)
         self.panel = FillSignPanel(self.model.fields, self)
         self.panel.setMaximumWidth(0)
+        self.panel.hide()
         self.panel_visible = False
         self.panel_divider = QFrame()
         self.panel_divider.setObjectName("Divider")
@@ -110,9 +111,7 @@ class DocumentTab(QWidget):
         self._panel_slide = QPropertyAnimation(self.panel, b"maximumWidth", self)
         self._panel_slide.setDuration(ANIMATION_MS)
         self._panel_slide.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self._panel_slide.finished.connect(
-            lambda: self.panel_divider.setVisible(self.panel.maximumWidth() > 0)
-        )
+        self._panel_slide.finished.connect(self._on_panel_slide_finished)
         layer = self.view.fill_layer
         assert layer is not None
         self.panel.tool_selected.connect(layer.set_tool)
@@ -141,6 +140,8 @@ class DocumentTab(QWidget):
     # --- Fill & Sign -------------------------------------------------------------
 
     def set_panel_visible(self, visible: bool, animate: bool = True) -> None:
+        """Slide the Fill & Sign panel in or out. Only MainWindow.set_fill_mode calls
+        this, so the app-wide fill mode is the single source of truth."""
         self.panel_visible = visible
         target = PANEL_WIDTH if visible else 0
         layer = self.view.fill_layer
@@ -148,6 +149,7 @@ class DocumentTab(QWidget):
             layer.set_tool("")
         self._panel_slide.stop()
         if visible:
+            self.panel.show()
             self.panel_divider.show()
         if animate and animations_enabled() and self.isVisible():
             self._panel_slide.setStartValue(self.panel.maximumWidth())
@@ -155,7 +157,12 @@ class DocumentTab(QWidget):
             self._panel_slide.start()
         else:
             self.panel.setMaximumWidth(target)
-            self.panel_divider.setVisible(visible)
+            self._on_panel_slide_finished()
+
+    def _on_panel_slide_finished(self) -> None:
+        # Hidden, not just zero-width: keyboard focus can't wander into it.
+        self.panel.setVisible(self.panel_visible)
+        self.panel_divider.setVisible(self.panel_visible)
 
     # --- signatures -------------------------------------------------------------------
 
