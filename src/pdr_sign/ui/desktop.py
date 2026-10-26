@@ -38,3 +38,9 @@ def show_in_folder(path: Path) -> None:
         except (OSError, subprocess.SubprocessError):
             pass
     QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
+
+
+def open_url(url: str) -> bool:
+    """Hand a web or mailto: link to the desktop (the OpenURI portal inside a snap).
+    False when nothing could take it, so callers can offer a Copy fallback."""
+    return QDesktopServices.openUrl(QUrl(url))

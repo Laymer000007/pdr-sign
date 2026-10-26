@@ -132,11 +132,22 @@ def run(folder: Path, show_in_folder: bool = False) -> int:
         names = QPrinterInfo.availablePrinterNames()
         return True, f"{len(names)} system printer(s): {', '.join(names) or 'none configured'}"
 
+    def support_qr() -> CheckResult:
+        from pdr_sign.services.support import ZCASH_ADDRESS, is_zcash_transparent_address
+        from pdr_sign.ui.welcome_dialog import WelcomeDialog
+
+        dialog = WelcomeDialog()
+        size = dialog.qr.pixmap().width()
+        dialog.deleteLater()
+        ok = size > 0 and is_zcash_transparent_address(ZCASH_ADDRESS)
+        return ok, f"QR {size} px, address checksum ok"
+
     checks: list[tuple[str, Callable[[], CheckResult]]] = [
         ("save + reopen", save),
         ("save signed copy (no overwrite)", signed_copy),
         ("print to PDF", print_to_pdf),
         ("printers (CUPS)", printers),
+        ("welcome window (QR code)", support_qr),
     ]
     failed = 0
     for label, check in checks:

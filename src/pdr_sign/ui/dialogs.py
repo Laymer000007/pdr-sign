@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QDialog,
@@ -20,12 +21,14 @@ from PySide6.QtWidgets import (
 
 from pdr_sign import APP_NAME, LICENSE_SPDX, SOURCE_URL, TAGLINE, __version__
 from pdr_sign.resources import APP_ICON
+from pdr_sign.services.support import FEEDBACK_EMAIL, ISSUES_URL, mailto_url
 from pdr_sign.ui.theme import SPACING
 
 THIRD_PARTY = (
     "Qt for Python (PySide6) — LGPL-3.0",
     "PyMuPDF and MuPDF — AGPL-3.0",
     "Pillow — MIT-CMU",
+    "segno (QR codes) — BSD-3-Clause",
     "Inter, Caveat, Dancing Script — SIL Open Font License 1.1",
     "Lucide icons — ISC",
 )
@@ -58,8 +61,11 @@ def show_error(parent: QWidget | None, title: str, message: str) -> None:
 
 
 class AboutDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, parent: QWidget | None = None, on_support: Callable[[], None] | None = None
+    ) -> None:
         super().__init__(parent)
+        self.on_support = on_support
         self.setWindowTitle(f"About {APP_NAME}")
         self.setMinimumWidth(380)
 
@@ -94,6 +100,19 @@ class AboutDialog(QDialog):
         licence.setOpenExternalLinks(True)
         licence.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
 
+        self.support = QLabel(
+            f'<a href="support">Support {APP_NAME}</a> · '
+            f'<a href="{mailto_url()}">Send feedback</a> · '
+            f'<a href="{ISSUES_URL}">Report a problem</a>'
+        )
+        self.support.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.support.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self.support.linkActivated.connect(self._support_link)
+        self.support_note = QLabel()
+        self.support_note.setObjectName("Muted")
+        self.support_note.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.support_note.hide()
+
         credits_ = QLabel("<b>Third-party components</b><br>" + "<br>".join(THIRD_PARTY))
         credits_.setObjectName("Muted")
         credits_.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -105,9 +124,24 @@ class AboutDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(SPACING * 3, SPACING * 3, SPACING * 3, SPACING * 2)
         layout.setSpacing(SPACING * 2)
-        for widget in (logo, name, meta, licence, credits_):
+        for widget in (logo, name, meta, licence, self.support, self.support_note, credits_):
             layout.addWidget(widget)
         layout.addWidget(buttons)
+
+    def _support_link(self, url: str) -> None:
+        if url == "support":  # the welcome & support window, after About closes
+            self.accept()
+            if self.on_support is not None:
+                QTimer.singleShot(0, self.on_support)
+            return
+        from pdr_sign.ui import desktop
+
+        if not desktop.open_url(url) and url.startswith("mailto:"):
+            from pdr_sign.ui.canvas import clipboard
+
+            clipboard().setText(FEEDBACK_EMAIL)
+            self.support_note.setText(f"No mail app found, so {FEEDBACK_EMAIL} was copied.")
+            self.support_note.show()
 
 
 def ask_save_path(parent: QWidget | None, title: str, suggested: Path) -> Path | None:

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QToolButton
 
+from pdr_sign.services import settings as settings_service
 from pdr_sign.services.settings import Settings
 from pdr_sign.services.signatures import SignatureStore
 from pdr_sign.ui import dialogs, icons, printing
@@ -66,3 +67,26 @@ def close_button(window: MainWindow, tab: DocumentTab) -> QToolButton:
     button.setIcon(icons.icon("x", window.tokens.muted, 14))
     button.clicked.connect(lambda: window.close_tab(tab))
     return button
+
+
+def show_welcome(window: MainWindow) -> None:
+    """The welcome & support window (one instance, non-modal, raised if already open)."""
+    from pdr_sign.ui.welcome_dialog import WelcomeDialog
+
+    dialog = getattr(window, "_welcome", None)
+    if dialog is None:
+        dialog = WelcomeDialog(window)
+        window._welcome = dialog  # type: ignore[attr-defined]
+    dialog.show()
+    dialog.raise_()
+    dialog.activateWindow()
+
+
+def welcome_on_first_launch(window: MainWindow) -> bool:
+    """Open the welcome window once, ever (the flag is saved before it shows)."""
+    if window.settings.welcome_shown:
+        return False
+    window.settings.welcome_shown = True
+    settings_service.save(window.settings)
+    QTimer.singleShot(300, lambda: show_welcome(window))
+    return True

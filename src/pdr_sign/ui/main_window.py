@@ -105,7 +105,9 @@ class MainWindow(QMainWindow):
         h.zoom_in_requested.connect(lambda: self._with_tab(lambda t: t.view.zoom_in()))
         h.zoom_out_requested.connect(lambda: self._with_tab(lambda t: t.view.zoom_out()))
         h.zoom_preset_requested.connect(self._zoom_preset)
-        h.about_requested.connect(lambda: dialogs.AboutDialog(self).exec())
+        h.about_requested.connect(
+            lambda: dialogs.AboutDialog(self, lambda: window_actions.show_welcome(self)).exec()
+        )
         h.search_requested.connect(lambda: self._with_tab(lambda t: t.open_search()))
         h.print_requested.connect(self.print_current)
         h.fill_toggled.connect(self.set_fill_mode)
@@ -115,6 +117,7 @@ class MainWindow(QMainWindow):
             lambda: self._with_tab(lambda t: save_flow.save_signed_copy(self, t))
         )
         h.settings_requested.connect(self.open_settings)
+        h.support_requested.connect(lambda: window_actions.show_welcome(self))
         self.empty_state.open_requested.connect(self.browse)
         self.empty_state.recent_requested.connect(lambda p: self.open_paths([p]))
         self.tab_bar.currentChanged.connect(self._on_tab_changed)

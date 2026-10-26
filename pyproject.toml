@@ -23,6 +23,7 @@ dependencies = [
   "PySide6-Essentials==6.12.0",
   "PyMuPDF==2.0",
   "Pillow==12.3.0",
+  "segno==1.6.6",
 ]
 
 [project.optional-dependencies]

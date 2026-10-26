@@ -309,6 +309,9 @@ QMenu::separator {{ height: 1px; background: {t.border}; margin: 4px 8px; }}
 #DropZone[dragActive="true"] {{ border-color: {t.accent_fg}; }}
 #DropZoneTitle {{ font-size: 17px; font-weight: 600; }}
 #Muted {{ color: {t.muted}; }}
+#Mono {{ font-family: "Ubuntu Mono", "DejaVu Sans Mono", monospace; font-size: 14px; }}
+#WelcomeTitle {{ font-size: 20px; font-weight: 600; }}
+#QrTile {{ background: {t.paper}; border: 1px solid {t.paper_border}; border-radius: {r}px; }}
 
 QToolButton::menu-indicator {{ image: none; width: 0; }}
 #PageField {{ padding: 4px 4px; }}

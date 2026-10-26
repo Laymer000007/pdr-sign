@@ -56,6 +56,7 @@ class HeaderBar(QWidget):
     signed_copy_requested = Signal()
     settings_requested = Signal()
     print_requested = Signal()
+    support_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -105,6 +106,8 @@ class HeaderBar(QWidget):
 
         self.search_button = self._add_icon(icon_button("search", "Search", "Ctrl+F"))
         self.search_button.clicked.connect(self.search_requested)
+        self.support_button = self._add_icon(icon_button("coffee", f"Support {APP_NAME}"))
+        self.support_button.clicked.connect(self.support_requested)
 
         self.menu_button = self._add_icon(icon_button("ellipsis-vertical", "Main menu"))
         self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
@@ -147,6 +150,7 @@ class HeaderBar(QWidget):
         row.addWidget(self.zoom_in_button)
         row.addStretch(1)
         row.addWidget(self.search_button)
+        row.addWidget(self.support_button)
         row.addWidget(self.menu_button)
 
         self.document_controls: list[QWidget] = [

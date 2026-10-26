@@ -13,7 +13,7 @@ from pdr_sign import APP_COMMAND, APP_ID, APP_NAME, APP_SHORT_NAME, __version__
 from pdr_sign.resources import APP_ICON, FONTS_DIR, SIGNATURE_FONT_FILES, UI_FONT_FILES
 from pdr_sign.services import settings as settings_service
 from pdr_sign.services.recent import RecentFiles
-from pdr_sign.ui import theme
+from pdr_sign.ui import theme, window_actions
 from pdr_sign.ui.main_window import MainWindow
 from pdr_sign.ui.single_instance import InstanceServer
 
@@ -115,6 +115,7 @@ def run(argv: Sequence[str], files: list[str]) -> int:
     app.aboutToQuit.connect(server.stop)
 
     window.show()
+    window_actions.welcome_on_first_launch(window)
     if files:
         window.open_paths(files)
     return app.exec()

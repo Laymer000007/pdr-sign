@@ -27,6 +27,8 @@ class Settings:
     signature_dir: str | None = None
     open_links_without_asking: bool = False
     show_sidebar: bool = False
+    # The welcome & support window opens by itself once, ever; then only on request.
+    welcome_shown: bool = False
     # Reserved for a possible future paid build. No licensing logic exists.
     license_key: str | None = None
 

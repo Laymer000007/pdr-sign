@@ -441,3 +441,19 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   works.
 - Dialog combo boxes got a themed chevron (a recoloured Lucide SVG written to a
   private temp folder for the stylesheet) and radio buttons a themed indicator.
+
+## Welcome & support window
+
+- **Once, ever:** `Settings.welcome_shown` is saved *before* the window first opens, so
+  a crash or an update never shows it again; the header's coffee button (Lucide
+  "coffee", right of Search, always available) and About → "Support PDR Sign" open it
+  any time. It is non-modal and has one button.
+- **Zcash:** the address lives in one constant (`services/support.py`) with a
+  Base58Check + mainnet t-address prefix check under test; the QR encodes the ZIP-321
+  URI `zcash:<address>`, rendered by `segno` (BSD-3-Clause, owner-approved) in black
+  on a white tile at the screen's pixel ratio (never rescaled, so it stays sharp). An
+  independent decoder (zxing-cpp, dev check only) reads it back as the exact URI.
+- **Links:** mail and web links go through `QDesktopServices` (the OpenURI portal in
+  the snap); if no mail app takes the `mailto:`, the address is copied and a toast
+  says so.
+- `--self-test` also builds the welcome window, so CI proves `segno` is bundled.

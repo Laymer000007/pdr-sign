@@ -10,6 +10,7 @@ bundles the following third-party components.
 | PyMuPDF | 2.0 | AGPL-3.0-or-later | https://github.com/pymupdf/PyMuPDF |
 | MuPDF (bundled in PyMuPDF) | — | AGPL-3.0-or-later | https://mupdf.com/ |
 | Pillow | 12.3.0 | MIT-CMU (HPND) | https://github.com/python-pillow/Pillow |
+| segno (QR codes) | 1.6.6 | BSD-3-Clause | https://github.com/heuer/segno |
 | pyHanko (v1.1, certificate signatures only) | 0.38.0 | MIT | https://github.com/MatthiasValvekens/pyHanko |
 | Inter (UI font) | variable | SIL Open Font License 1.1 | https://github.com/rsms/inter |
 | Caveat (typed signatures) | variable | SIL Open Font License 1.1 | https://github.com/googlefonts/caveat |
