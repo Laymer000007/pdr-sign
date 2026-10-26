@@ -36,6 +36,7 @@ RESULTS_REFRESH_MS = 120  # coalesce streaming results before rebuilding the lis
 
 class DocumentTab(QWidget):
     external_link = Signal(str)
+    field_clicked = Signal()
     dirty_changed = Signal(bool)
     fill_done = Signal()
 
@@ -109,6 +110,7 @@ class DocumentTab(QWidget):
         self.sidebar.outline.destination_activated.connect(self.view.go_to_page)
         self.view.current_page_changed.connect(self.sidebar.thumbnails.set_current)
         self.view.external_link.connect(self.external_link)
+        self.view.field_clicked.connect(self.field_clicked)
 
         self._results_timer = QTimer(self, singleShot=True, interval=RESULTS_REFRESH_MS)
         self._results_timer.timeout.connect(self._refresh_results)

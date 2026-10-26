@@ -14,7 +14,14 @@ from PySide6.QtGui import (
     QKeyEvent,
     QMouseEvent,
 )
-from PySide6.QtWidgets import QApplication, QGraphicsView, QMenu, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QGraphicsItem,
+    QGraphicsView,
+    QMenu,
+    QWidget,
+)
 
 from pdr_sign.services.document import Document, LinkInfo
 from pdr_sign.services.search import SearchHit
@@ -22,7 +29,7 @@ from pdr_sign.services.text import word_at
 from pdr_sign.ui.fill_layer import FillLayer
 from pdr_sign.ui.fill_model import FillModel
 from pdr_sign.ui.overlay.base import OverlayGraphic
-from pdr_sign.ui.overlay.field_paint import FieldColors
+from pdr_sign.ui.overlay.field_paint import FieldColors, SignHere
 from pdr_sign.ui.overlay.field_widgets import FieldLayer, FieldProxy, ToggleField
 from pdr_sign.ui.page_item import PageItem
 from pdr_sign.ui.page_view import PageView
@@ -46,6 +53,8 @@ def translucent(hex_color: str, alpha: int) -> QColor:
 
 class Canvas(PageView):
     external_link = Signal(str)
+    # A click on a form field or "Sign here" box finished: the window opens Fill & Sign.
+    field_clicked = Signal()
 
     def __init__(
         self, doc: Document, scheduler: RenderScheduler, parent: QWidget | None = None
@@ -55,6 +64,7 @@ class Canvas(PageView):
         self.selection.changed.connect(self._on_selection_changed)
         self._press_pos: QPoint | None = None
         self._press_link: LinkInfo | None = None
+        self._press_field = False
         self._selecting = False
         self._search_pages: set[int] = set()
         self._current_hit: SearchHit | None = None
@@ -155,6 +165,13 @@ class Canvas(PageView):
         item = self.itemAt(pos)
         return item is not None and not isinstance(item, PageItem)
 
+    def _field_at(self, pos: QPoint) -> QGraphicsItem | None:
+        """The form-field editor or "Sign here" box under ``pos``, if any."""
+        item = self.itemAt(pos)
+        while item is not None and not isinstance(item, FieldProxy | ToggleField | SignHere):
+            item = item.parentItem()
+        return item
+
     @property
     def placing(self) -> bool:
         """A placing tool is active: clicks put items down."""
@@ -172,7 +189,14 @@ class Canvas(PageView):
             return
         self._press_to_items = self._interactive_item_at(pos)
         if self._press_to_items:
+            field = self._field_at(pos) if left else None
             super().mousePressEvent(event)
+            # A dropdown's popup takes the release, so announce it now; everything else
+            # after the release, so opening the panel can't move the field mid-click.
+            if isinstance(field, FieldProxy) and isinstance(field.widget(), QComboBox):
+                self.field_clicked.emit()
+            else:
+                self._press_field = field is not None
             return
         if event.button() == Qt.MouseButton.LeftButton:
             if self._start_line(pos) or self._place_with_tool(pos):
@@ -260,6 +284,9 @@ class Canvas(PageView):
         if self._press_to_items:
             self._press_to_items = False
             super().mouseReleaseEvent(event)
+            if self._press_field:
+                self._press_field = False
+                self.field_clicked.emit()
             return
         if self.fill_layer is not None and self.fill_layer.draft is not None:
             self.fill_layer.end_line()

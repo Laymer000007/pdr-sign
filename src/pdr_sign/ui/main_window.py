@@ -205,6 +205,7 @@ class MainWindow(QMainWindow):
         tab.external_link.connect(self.open_external_link)
         tab.dirty_changed.connect(lambda _d, t=tab: self._update_tab_title(t))
         tab.fill_done.connect(lambda: self.set_fill_mode(False))
+        tab.field_clicked.connect(self._open_fill_for_field)
         self.tabs.append(tab)
         self.stack.addWidget(tab)
         self.stack.setCurrentWidget(tab)
@@ -336,6 +337,11 @@ class MainWindow(QMainWindow):
         for tab in self.tabs:
             tab.set_panel_visible(on, animate=tab is self.current_tab())
         self.header.set_fill_checked(on)
+
+    def _open_fill_for_field(self) -> None:
+        """Clicking a form field opens Fill & Sign; the field keeps the click and focus."""
+        if not self.fill_mode:
+            self.set_fill_mode(True)
 
     def _update_tab_title(self, tab: DocumentTab) -> None:
         if tab not in self.tabs:
