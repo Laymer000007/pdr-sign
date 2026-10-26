@@ -1,4 +1,4 @@
-"""``pdr-sign --self-test FOLDER [--show-in-folder]``: check an installed PDR works.
+"""``pdr-sign --self-test FOLDER [--show-in-folder]``: check an installed PDR Sign works.
 
 Meant for packaging checks (snap, .deb, AppImage, test VMs): it runs the real save
 pipeline and print path inside whatever runtime the package provides, without
@@ -34,7 +34,7 @@ def _make_form(path: Path) -> Path:
 
     doc = pymupdf.open()
     page = doc.new_page(width=595, height=842)
-    page.insert_text((72, 60), "PDR self-test form", fontsize=16)
+    page.insert_text((72, 60), "PDR Sign self-test form", fontsize=16)
     widget = pymupdf.Widget()
     widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT  # type: ignore[attr-defined]
     widget.field_name = "name"
@@ -58,7 +58,7 @@ def run(folder: Path, show_in_folder: bool = False) -> int:
     _app = QApplication.instance() or QApplication([])  # printing needs one alive
     folder = folder.expanduser().resolve()
     folder.mkdir(parents=True, exist_ok=True)
-    print(f"PDR {__version__} self-test in {folder}")
+    print(f"PDR Sign {__version__} self-test in {folder}")
     if "SNAP_NAME" in os.environ:
         runtime = f"snap {os.environ['SNAP_NAME']}"
     else:

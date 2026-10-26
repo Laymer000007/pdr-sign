@@ -15,6 +15,7 @@ from typing import Any, Literal
 
 import pymupdf
 
+from pdr_sign import APP_NAME
 from pdr_sign.services import sigimage
 from pdr_sign.services.document import Document
 from pdr_sign.services.text import Rect
@@ -126,7 +127,7 @@ def write_overlays(doc: Document, items: list[OverlayItem]) -> set[int]:
                 align=_C.TEXT_ALIGN_CENTER if item.is_mark else _C.TEXT_ALIGN_LEFT,
             )
             annot.set_border(width=0)
-            annot.set_info(title="PDR", content=text)
+            annot.set_info(title=APP_NAME, content=text)
             annot.update()
             pdf.xref_set_key(annot.xref, "PDR", "1")
             pdf.xref_set_key(annot.xref, "PDRKind", f"/{item.kind}")
@@ -159,7 +160,7 @@ def _write_line(pdf: pymupdf.Document, page: pymupdf.Page, item: OverlayItem) ->
     annot = page.add_line_annot(pymupdf.Point(x1, y1) * m, pymupdf.Point(x2, y2) * m)
     annot.set_border(width=line_width(item.font_size))
     annot.set_colors(stroke=_rgb(item.color))
-    annot.set_info(title="PDR")
+    annot.set_info(title=APP_NAME)
     annot.update()
     pdf.xref_set_key(annot.xref, "PDR", "1")
     pdf.xref_set_key(annot.xref, "PDRKind", "/line")

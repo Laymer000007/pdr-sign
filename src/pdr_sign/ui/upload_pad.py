@@ -217,7 +217,7 @@ class UploadPad(QWidget):
         try:
             image = sigimage.load(data)
         except Exception:
-            self.status.setText("That file isn't an image PDR can read.")
+            self.status.setText("That file isn't an image PDR Sign can read.")
             return
         self.data = data
         self.options = replace(self.base, ink=self._ink())

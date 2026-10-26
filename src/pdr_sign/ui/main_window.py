@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt
 from PySide6.QtGui import (
     QCloseEvent,
     QDragEnterEvent,
@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pdr_sign import APP_NAME
 from pdr_sign.services import recent as recent_service
 from pdr_sign.services import settings as settings_service
 from pdr_sign.services.document import Document, DocumentError, PasswordRequired, WrongPassword
@@ -40,18 +39,11 @@ from pdr_sign.ui.header_bar import HeaderBar
 from pdr_sign.ui.render_scheduler import RenderScheduler
 from pdr_sign.ui.signature_library import SignatureLibrary
 from pdr_sign.ui.theme import Tokens
+from pdr_sign.ui.window_helpers import is_pdf_url, window_title, zoom_setting
 
 
 class ThemeLike(Protocol):
     def set_override(self, override: str) -> None: ...
-
-
-def zoom_setting(zoom: float, mode: str) -> str:
-    return mode or f"{zoom:.4f}"
-
-
-def is_pdf_url(url: QUrl) -> bool:
-    return url.isLocalFile() and url.toLocalFile().lower().endswith(".pdf")
 
 
 class MainWindow(QMainWindow):
@@ -66,7 +58,7 @@ class MainWindow(QMainWindow):
         self.settings = settings or Settings()
         self.recent = recent or RecentFiles()
         self.scheduler = scheduler or RenderScheduler()
-        self.setWindowTitle(APP_NAME)
+        self.setWindowTitle(window_title())
         self.resize(1180, 820)
         self.setMinimumSize(640, 480)
         self.setAcceptDrops(True)
@@ -158,7 +150,7 @@ class MainWindow(QMainWindow):
             self.stack.setCurrentWidget(self.empty_state)
             self.empty_state.set_recent(self.recent.existing())
             self.header.set_document(None)
-            self.setWindowTitle(APP_NAME)
+            self.setWindowTitle(window_title())
             return
         self.header.set_document(tab.doc.page_count)
         self.header.set_page(tab.view.current_page)
@@ -166,8 +158,7 @@ class MainWindow(QMainWindow):
         self.header.set_sidebar_checked(tab.sidebar_visible)
         self.header.set_fill_checked(self.fill_mode)
         self.header.set_save_enabled(tab.model.dirty)
-        marker = "• " if tab.model.dirty else ""
-        self.setWindowTitle(f"{marker}{tab.doc.display_name} – PDR")
+        self.setWindowTitle(window_title(tab.doc.display_name, tab.model.dirty))
         tab.view.setFocus()
 
     # --- opening and closing ---------------------------------------------------------

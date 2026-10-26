@@ -39,7 +39,7 @@ def apply_setting(window: MainWindow, settings: Settings, key: str) -> None:
 def open_external_link(window: MainWindow, uri: str) -> None:
     url = QUrl(uri)
     if url.scheme().lower() not in SAFE_LINK_SCHEMES:
-        message = f"PDR only opens web and email links.\n\n{uri}"
+        message = f"PDR Sign only opens web and email links.\n\n{uri}"
         dialogs.show_error(window, "Link not opened", message)
         return
     if window.settings.open_links_without_asking or dialogs.confirm_external_link(window, uri):

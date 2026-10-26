@@ -277,3 +277,17 @@ def test_reopened_items_are_not_drawn_twice(
         if round(x * scale) < image.width() and round(y * scale) < image.height()
     ]
     assert not any(inked)  # the text exists only as the editable overlay
+
+
+def test_window_title_names_document_and_app(
+    window: MainWindow, form_pdf: Path, qapp: QApplication
+) -> None:
+    # Qt appends the display name unless the title already ends with it.
+    assert qapp.applicationDisplayName() == "PDR Sign"
+    assert window.windowTitle() == "PDR Sign"
+    tab = open_tab(window, form_pdf)
+    assert window.windowTitle() == f"{form_pdf.name} – PDR Sign"
+    tab.model.set_field_value("name", "Ada")
+    assert window.windowTitle() == f"• {form_pdf.name} – PDR Sign"
+    window.close_tab(tab, ask=False)
+    assert window.windowTitle() == "PDR Sign"

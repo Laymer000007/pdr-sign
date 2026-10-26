@@ -93,7 +93,7 @@ def test_confirmation_wording_and_default(qapp: QApplication) -> None:
     box = dialogs.signed_copy_box(None, f"Form{SUFFIX}.pdf")
     assert box.windowTitle() == "Save signed copy?"
     assert box.text() == (
-        f"PDR will create a new file: Form{SUFFIX}.pdf\n\n"
+        f"PDR Sign will create a new file: Form{SUFFIX}.pdf\n\n"
         "Your original stays unchanged, so you can still make corrections and save another "
         "signed copy later.\n\n"
         "In the new copy, everything you filled in, signed and stamped is locked into the "

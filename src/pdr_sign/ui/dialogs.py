@@ -161,7 +161,7 @@ def ask_unsaved(parent: QWidget | None, name: str) -> str:
 
 SIGNED_COPY_TITLE = "Save signed copy?"
 SIGNED_COPY_BODY = (
-    "PDR will create a new file: {name}\n\n"
+    "PDR Sign will create a new file: {name}\n\n"
     "Your original stays unchanged, so you can still make corrections and save another "
     "signed copy later.\n\n"
     "In the new copy, everything you filled in, signed and stamped is locked into the "

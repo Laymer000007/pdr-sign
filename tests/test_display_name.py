@@ -56,3 +56,26 @@ def test_about_dialog(qtbot: QtBot) -> None:
     texts = [label.text() for label in dialog.findChildren(QLabel)]
     assert APP_NAME in texts
     assert any(TAGLINE in t for t in texts)
+
+
+def test_saved_marks_are_authored_by_pdr_sign(tmp_path: Path) -> None:
+    import pymupdf
+
+    from pdr_sign.services import saving
+    from pdr_sign.services.document import Document
+    from pdr_sign.services.saving import SaveRequest
+    from pdr_sign.services.stamps import OverlayItem
+
+    path = tmp_path / "a.pdf"
+    blank = pymupdf.open()
+    blank.new_page()
+    blank.save(path)
+    doc = Document.open(path)
+    items = [
+        OverlayItem("text", 0, (72, 72, 200, 90), text="Hi"),
+        OverlayItem("line", 0, (72, 120, 200, 120)),
+    ]
+    saving.save(doc, path, SaveRequest({}, items))
+    doc.close()
+    with pymupdf.open(path) as pdf:
+        assert [a.info["title"] for a in pdf[0].annots()] == [APP_NAME, APP_NAME]
