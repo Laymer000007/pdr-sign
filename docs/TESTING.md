@@ -40,6 +40,15 @@ Install one at a time (remove the previous one first; they share the app ID).
 11. [ ] **Themes:** switch the desktop between light and dark — PDR follows; Settings →
         Appearance overrides it.
 12. [ ] **HiDPI:** at 200 % scaling pages and icons are sharp.
+13. [ ] **Welcome:** on the very first launch the welcome window opens once; it never
+        opens by itself again (restart, update). The coffee button and About → Support
+        PDR Sign open it; Copy address shows "Address copied"; the QR code scans in a
+        Zcash wallet as the same address; the email link opens the mail app.
+14. [ ] **Field click:** with Fill & Sign closed, clicking a form field opens the panel
+        and the click still types into / ticks the field; clicking page text doesn't.
+15. [ ] **Print dialog:** everything visible at once (printer, pages incl. current,
+        copies, paper, orientation, scaling); a range like `2-3, 5` prints just those.
+        Snap without `cups-control`: the dialog shows the one-time command and Copy.
 
 ## Snap only
 

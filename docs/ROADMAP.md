@@ -3,6 +3,11 @@
 Items the owner added on top of the build spec's phase list. Check this file at the start
 of each phase.
 
+## Free forever
+
+- PDR Sign is free, supported by donations only. The spec's Phase 8 licence-key work
+  is dropped; there will be no paid build, paywall or licence check.
+
 ## Carried over
 
 - **Phase 3 check on the owner's real forms:** `samples/private/` didn't exist yet when

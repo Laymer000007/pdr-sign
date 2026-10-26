@@ -73,4 +73,5 @@ Check them in Firefox or in `tools/pdfjs-check/viewer.html` (same engine).
 - `pdr_sign.OWNER` is `Laymer000007`, so the app ID is `io.github.Laymer000007.PdrSign` and
   `SOURCE_URL` is https://github.com/Laymer000007/pdr-sign. Packaging file names and
   contents must use the same app ID; no `OWNER` placeholders remain.
-- Do not build licensing or payment code. `Settings.license_key` is only a reserved field.
+- PDR Sign is free forever, supported by donations only. Never build licensing, paywalls
+  or payment code (the old reserved `license_key` setting was removed and is migrated away).

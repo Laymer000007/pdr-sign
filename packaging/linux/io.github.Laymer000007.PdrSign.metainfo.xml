@@ -10,7 +10,7 @@
   </developer>
   <description>
     <p>
-      PDR is a calm, fast PDF reader for the Linux desktop. Documents open in a
+      PDR Sign is a calm, fast PDF reader for the Linux desktop. Documents open in a
       continuous, smoothly scrolling view with thumbnails, the outline, full-text
       search, text selection and printing, and it follows your light or dark theme.
     </p>
@@ -22,9 +22,13 @@
       on paper. Saved signatures and stamps stay on your computer.
     </p>
     <p>
-      Save keeps your entries editable in PDR and visible in every PDF reader. Save
+      Save keeps your entries editable in PDR Sign and visible in every PDF reader. Save
       signed copy writes a new file next to the original with everything locked into
       the pages, while the original stays unchanged for corrections.
+    </p>
+    <p>
+      PDR Sign is free and open source, with no ads, subscriptions or paywalled
+      features. It is supported by donations.
     </p>
   </description>
   <launchable type="desktop-id">io.github.Laymer000007.PdrSign.desktop</launchable>
@@ -35,6 +39,8 @@
   <url type="homepage">https://github.com/Laymer000007/pdr-sign</url>
   <url type="vcs-browser">https://github.com/Laymer000007/pdr-sign</url>
   <url type="bugtracker">https://github.com/Laymer000007/pdr-sign/issues</url>
+  <url type="donation">https://github.com/Laymer000007/pdr-sign#support</url>
+  <url type="contact">https://github.com/Laymer000007/pdr-sign#feedback</url>
   <categories>
     <category>Office</category>
     <category>Viewer</category>
@@ -77,10 +83,17 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
-    <release version="1.0.0" date="2026-10-22">
+    <release version="1.0.0" date="2026-10-26">
       <description>
-        <p>First release: reading, search, printing, form filling, signatures, initials,
-        company stamps, saving and signed copies.</p>
+        <p>First release.</p>
+        <ul>
+          <li>Fast reading with thumbnails, outline, search, text selection and tabs</li>
+          <li>Fill &amp; Sign: form fields, text, ticks, lines, dates, signatures,
+          initials and company stamps</li>
+          <li>Save keeps entries editable; Save signed copy writes a finished copy</li>
+          <li>One print dialog with page ranges, paper, orientation and scaling</li>
+          <li>Light and dark themes</li>
+        </ul>
       </description>
     </release>
   </releases>

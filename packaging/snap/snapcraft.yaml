@@ -8,6 +8,11 @@ adopt-info: pdr-sign
 grade: stable
 confinement: strict
 license: AGPL-3.0-or-later
+website: https://github.com/Laymer000007/pdr-sign
+source-code: https://github.com/Laymer000007/pdr-sign
+issues: https://github.com/Laymer000007/pdr-sign/issues
+contact: mailto:micro_korn@hotmail.com
+donation: https://github.com/Laymer000007/pdr-sign#support
 icon: packaging/linux/icons/hicolor/scalable/apps/io.github.Laymer000007.PdrSign.svg
 
 platforms:

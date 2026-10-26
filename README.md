@@ -1,10 +1,10 @@
 # PDR Sign
 
-Portable Document Read and Sign: a fast PDF reader with Fill & Sign, for the Ubuntu desktop.
+Portable Document Read and Sign: a fast, private PDF reader with Fill & Sign, for the
+Ubuntu desktop. Your documents never leave your computer.
 
-PDR is a calm, content-first PDF viewer: continuous scrolling, thumbnails, outline,
-search, printing, and a Fill & Sign panel for filling forms, ticking boxes and placing
-your signature, all without leaving the document.
+**Free forever, supported by donations.** No ads, no subscriptions, no paywalled
+features — ever.
 
 ![Fill & Sign with a signature and a company stamp](docs/screenshots/fill-sign-light.png)
 
@@ -15,30 +15,100 @@ your signature, all without leaving the document.
 ## Features
 
 - **Read:** continuous scroll, crisp HiDPI rendering, thumbnails, outline, links,
-  full-text search, text selection and copy, printing, tabs, recent files.
-- **Fill:** type into PDF form fields of every kind; add text, ✓, ✗, dots, lines and
+  full-text search, text selection and copy, tabs, recent files.
+- **Fill:** click any form field to start filling; add text, ✓, ✗, dots, lines and
   dates anywhere on the page; undo and redo everything.
 - **Sign:** draw a signature, type it in a handwriting font, or clean up a phone photo
   of it; the same for initials. Saved signatures stay on your computer.
 - **Stamp:** upload a scan or photo of a company stamp — the background is removed and
   its colours kept; place it at its real size, turn and fade it.
-- **Save:** your entries stay editable in PDR and visible in every PDF reader.
+- **Save:** your entries stay editable in PDR Sign and visible in every PDF reader.
   **Save signed copy** writes a new file next to the original with everything fixed
   into the pages; the original stays unchanged for corrections.
+- **Print:** one dialog with printer, page range, copies, paper, orientation and
+  "Fit to page" / "Actual size".
 
 ## Install
 
-Download from the [Releases](https://github.com/Laymer000007/pdr-sign/releases) page and
-check the file against `SHA256SUMS`.
+### Snap Store (recommended)
 
-| Format | Install | Remove |
-|---|---|---|
-| Snap | `sudo snap install pdr-sign` (once in the Snap Store) or `sudo snap install --dangerous pdr-sign_*.snap` | `sudo snap remove pdr-sign` |
-| .deb (Ubuntu 22.04+) | `sudo apt install ./pdr-sign_*_amd64.deb` | `sudo apt remove pdr-sign` |
-| AppImage | `chmod +x PDR-sign-*-x86_64.AppImage` and run it | delete the file |
+```bash
+sudo snap install pdr-sign
+```
 
-To check an installed copy, `pdr-sign --self-test ~/pdr-selftest` saves, signs and
-prints test files into that folder and reports what worked.
+**Printing, once:** a snap can only reach your printers after you allow it. Run this one
+time (PDR Sign shows the same command, with a Copy button, in its print dialog):
+
+```bash
+sudo snap connect pdr-sign:cups-control
+```
+
+To open PDFs from USB sticks and other drives, also run
+`sudo snap connect pdr-sign:removable-media` once.
+
+### .deb (Ubuntu 22.04 and newer)
+
+Download `pdr-sign_<version>_amd64.deb` from the
+[Releases](https://github.com/Laymer000007/pdr-sign/releases) page, then:
+
+```bash
+sudo apt install ./pdr-sign_1.0.0_amd64.deb
+```
+
+Remove it with `sudo apt remove pdr-sign`.
+
+### AppImage (any recent Linux distribution)
+
+Download `PDR-sign-<version>-x86_64.AppImage` from the
+[Releases](https://github.com/Laymer000007/pdr-sign/releases) page, then:
+
+```bash
+chmod +x PDR-sign-1.0.0-x86_64.AppImage
+./PDR-sign-1.0.0-x86_64.AppImage
+```
+
+### Check your download
+
+Every release has a `SHA256SUMS` file. In the download folder:
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
+To check that an installed copy works, `pdr-sign --self-test ~/pdr-selftest` saves,
+signs and prints test files into that folder and reports what worked.
+
+## Support
+
+PDR Sign is free and open source, and always will be. If it saves you time, please
+consider buying me a coffee. Your support funds what's next:
+
+- Digital certificate signatures
+- Highlight, underline and comments
+- Rotate, reorder and delete pages
+- Merge and split PDFs
+- Text recognition (OCR) for scanned documents
+
+**Buy me a coffee with Zcash (ZEC):** `t1J43HtBcvFmtYmJF7waapPcJtKHUwDY8mf`
+
+<img src="docs/support/zcash-qr.svg" alt="QR code for zcash:t1J43HtBcvFmtYmJF7waapPcJtKHUwDY8mf" width="185">
+
+The same address and QR code are in the app: the coffee button in the header, or
+About → Support PDR Sign.
+
+## Feedback
+
+Ideas or feedback? I'd love to hear from you: [micro_korn@hotmail.com](mailto:micro_korn@hotmail.com).
+
+## Reporting a problem
+
+Open an issue on [GitHub Issues](https://github.com/Laymer000007/pdr-sign/issues) and
+pick **Bug report** or **Feature request**. For a bug, please include the PDR Sign
+version (About), how you installed it (snap, .deb or AppImage), your Ubuntu version,
+and the steps to reproduce. Don't attach PDFs with personal data.
+
+Security problems: please report them privately, as described in
+[SECURITY.md](SECURITY.md).
 
 ## Run from source
 
@@ -61,10 +131,11 @@ uv pip install --python .venv -e ".[dev]"
 Packaging: `pyinstaller packaging/pdr-sign.spec`, then `packaging/appimage/build.sh` and
 `packaging/deb/build.sh`; the snap builds in CI from `packaging/snap/snapcraft.yaml`
 (`.github/workflows/packages.yml`). Manual release checks: [docs/TESTING.md](docs/TESTING.md).
+Changes per version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Licence
 
-PDR is free software, licensed under the **GNU Affero General Public License v3.0 or
-later** (see [LICENSE](LICENSE)). It is built on PyMuPDF/MuPDF, which is AGPL-licensed.
-Third-party components and their licences are listed in
+PDR Sign is free software, licensed under the **GNU Affero General Public License v3.0
+or later** (see [LICENSE](LICENSE)). It is built on PyMuPDF/MuPDF, which is
+AGPL-licensed. Third-party components and their licences are listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

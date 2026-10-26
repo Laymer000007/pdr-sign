@@ -25,7 +25,7 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   to `Fusion` so our QSS and palette render the same on every desktop.
 - **Settings are a JSON file** at `$XDG_CONFIG_HOME/pdr-sign/settings.json` (snap:
   `$SNAP_USER_DATA`), handled by `services/settings.py` with a dataclass. Not QSettings,
-  so the services layer stays Qt-free. Includes a reserved `license_key: str | None`.
+  so the services layer stays Qt-free.
 - **Qt-free `services/`** is enforced by a test (`tests/test_architecture.py`), which
   parses every module's imports, rather than by a lint rule.
 - **Icons:** only the Lucide SVGs we use are vendored (from `lucide-static` 1.52.0). They
@@ -457,3 +457,9 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   the snap); if no mail app takes the `mailto:`, the address is copied and a toast
   says so.
 - `--self-test` also builds the welcome window, so CI proves `segno` is bundled.
+
+## Free forever (no paid build)
+
+- PDR Sign never charges: donations only. The spec's planned Phase 8 licence-key work
+  is dropped. The reserved `Settings.license_key` is removed; `settings.load()` drops
+  it from older settings files (`DROPPED_KEYS`) and rewrites them once.

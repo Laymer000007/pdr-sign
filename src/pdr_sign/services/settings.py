@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -13,6 +14,10 @@ from pdr_sign import APP_COMMAND
 
 ThemeChoice = Literal["system", "light", "dark"]
 ZoomChoice = Literal["fit-width", "fit-page", "100"]
+
+# Keys older versions wrote that no longer exist; load() rewrites the file without them.
+# (license_key: PDR Sign is free, supported by donations; there is no paid build.)
+DROPPED_KEYS = ("license_key",)
 
 THEME_CHOICES: tuple[str, ...] = get_args(ThemeChoice)
 ZOOM_CHOICES: tuple[str, ...] = get_args(ZoomChoice)
@@ -29,8 +34,6 @@ class Settings:
     show_sidebar: bool = False
     # The welcome & support window opens by itself once, ever; then only on request.
     welcome_shown: bool = False
-    # Reserved for a possible future paid build. No licensing logic exists.
-    license_key: str | None = None
 
 
 def _xdg(var: str, fallback: str) -> Path:
@@ -87,7 +90,11 @@ def load(path: Path | None = None) -> Settings:
         return Settings()
     if not isinstance(raw, dict):
         return Settings()
-    return _coerce(raw)
+    settings = _coerce(raw)
+    if any(key in raw for key in DROPPED_KEYS):
+        with contextlib.suppress(OSError):  # read-only config: just ignore the old key
+            save(settings, path)
+    return settings
 
 
 def save(settings: Settings, path: Path | None = None) -> None:

@@ -1,0 +1,60 @@
+name: Bug report
+description: Something in PDR Sign doesn't work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Please don't attach PDFs, signatures
+        or screenshots that contain personal data. Security problems: see SECURITY.md
+        and report them privately instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a PDF with form fields
+        2. Click …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: PDR Sign version
+      description: Shown in the menu → About PDR Sign.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - Snap (Snap Store)
+        - Snap (downloaded .snap)
+        - .deb
+        - AppImage
+        - From source
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Ubuntu (or other distribution) version and desktop
+      placeholder: "Ubuntu 24.04, GNOME on Wayland"
+    validations:
+      required: true
+  - type: textarea
+    id: selftest
+    attributes:
+      label: Self-test output (optional)
+      description: Run `pdr-sign --self-test ~/pdr-selftest` and paste what it printed.
+      render: text

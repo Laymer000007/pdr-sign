@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -30,10 +31,21 @@ def test_invalid_values_are_ignored(tmp_path: Path) -> None:
     assert s.load(path) == s.Settings()
 
 
-def test_license_key_is_reserved(tmp_path: Path) -> None:
+def test_old_license_key_is_dropped(tmp_path: Path) -> None:
     path = tmp_path / "settings.json"
-    s.save(s.Settings(license_key="abc"), path)
-    assert s.load(path).license_key == "abc"
+    path.write_text(json.dumps({"theme": "dark", "license_key": "abc"}))
+    loaded = s.load(path)
+    assert loaded.theme == "dark"
+    assert not hasattr(loaded, "license_key")
+    assert json.loads(path.read_text()) == asdict(loaded)  # rewritten without it
+    assert "license_key" not in path.read_text()
+
+
+def test_welcome_flag_round_trips(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    assert not s.load(path).welcome_shown
+    s.save(s.Settings(welcome_shown=True), path)
+    assert s.load(path).welcome_shown
 
 
 def test_default_paths_follow_xdg(tmp_path: Path) -> None:
