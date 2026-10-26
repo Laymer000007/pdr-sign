@@ -1,7 +1,8 @@
-"""Printing through QPrintDialog: each page is rendered at 300 dpi and painted on the printer.
+"""Printing: each page is rendered at 300 dpi and painted on the printer.
 
-Pages whose orientation doesn't match the paper are turned 90° so they use the
-whole sheet. Scaling is "Fit to page" (default) or "Actual size".
+With "Automatic" orientation (the default), pages whose orientation doesn't match the
+paper are turned 90° so they use the whole sheet. Scaling is "Fit to page" (default)
+or "Actual size". The dialog itself is ``print_dialog.PrintDialog``.
 """
 
 from __future__ import annotations
@@ -10,33 +11,15 @@ from collections.abc import Callable
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QImage, QPainter
-from PySide6.QtPrintSupport import QAbstractPrintDialog, QPrintDialog, QPrinter
-from PySide6.QtWidgets import (
-    QButtonGroup,
-    QProgressDialog,
-    QRadioButton,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtPrintSupport import QPrinter
+from PySide6.QtWidgets import QDialog, QProgressDialog, QWidget
 
 from pdr_sign.services.document import Document, DocumentError
+from pdr_sign.ui import dialogs
+from pdr_sign.ui.print_dialog import PDF_TARGET, PrintDialog, apply_choices
+from pdr_sign.ui.theme import LIGHT, Tokens
 
 PRINT_DPI = 300
-
-
-def pages_to_print(printer: QPrinter, page_count: int, current: int) -> list[int]:
-    """0-based page indices chosen in the dialog (all, a range list, or the current one)."""
-    mode = printer.printRange()
-    if mode == QPrinter.PrintRange.CurrentPage:
-        return [current]
-    if mode == QPrinter.PrintRange.PageRange:
-        pages: list[int] = []
-        for r in printer.pageRanges().toRangeList():
-            for number in range(max(1, r.from_), min(page_count, r.to) + 1):
-                if number - 1 not in pages:
-                    pages.append(number - 1)
-        return pages
-    return list(range(page_count))
 
 
 def render_page(doc: Document, index: int, dpi: int = PRINT_DPI) -> QImage:
@@ -47,10 +30,10 @@ def render_page(doc: Document, index: int, dpi: int = PRINT_DPI) -> QImage:
 
 
 def placement(
-    page_w: float, page_h: float, paper: QRectF, dpi: float, fit: bool
+    page_w: float, page_h: float, paper: QRectF, dpi: float, fit: bool, auto_rotate: bool = True
 ) -> tuple[QRectF, bool]:
     """Target rect (centred on the origin, device px) and whether to rotate by 90°."""
-    rotate = (page_w > page_h) != (paper.width() > paper.height())
+    rotate = auto_rotate and (page_w > page_h) != (paper.width() > paper.height())
     w_in, h_in = (page_h, page_w) if rotate else (page_w, page_h)
     w, h = w_in / 72 * dpi, h_in / 72 * dpi  # actual size in device pixels
     if fit:
@@ -67,6 +50,7 @@ def print_document(
     pages: list[int],
     fit: bool = True,
     progress: Callable[[int], bool] | None = None,
+    auto_rotate: bool = True,
 ) -> bool:
     """Paint ``pages`` onto ``printer``. Returns False if cancelled or it failed."""
     if not pages:
@@ -81,7 +65,7 @@ def print_document(
             if n and not printer.newPage():
                 return False
             info = doc.pages[index]
-            target, rotate = placement(info.width, info.height, paper, dpi, fit)
+            target, rotate = placement(info.width, info.height, paper, dpi, fit, auto_rotate)
             image = render_page(doc, index)
             painter.save()
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
@@ -101,36 +85,26 @@ def print_document(
         painter.end()
 
 
-class ScalingOptions(QWidget):
-    """Extra tab in the print dialog."""
-
-    def __init__(self, fit: bool = True) -> None:
-        super().__init__()
-        self.setWindowTitle("Scaling")
-        self.fit = QRadioButton("Fit to page")
-        self.actual = QRadioButton("Actual size")
-        (self.fit if fit else self.actual).setChecked(True)
-        group = QButtonGroup(self)
-        group.addButton(self.fit)
-        group.addButton(self.actual)
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.fit)
-        layout.addWidget(self.actual)
-        layout.addStretch()
-
-
-def run_print_dialog(parent: QWidget, printer: QPrinter, doc: Document, current: int) -> None:
-    """Ask for printer, range and scaling, then print with a cancellable progress dialog."""
-    dialog = QPrintDialog(printer, parent)
-    dialog.setWindowTitle(f"Print “{doc.path.name}”")
-    option = QAbstractPrintDialog.PrintDialogOption
-    dialog.setOptions(option.PrintPageRange | option.PrintCurrentPage | option.PrintToFile)
-    dialog.setMinMax(1, doc.page_count)
-    scaling = ScalingOptions()
-    dialog.setOptionTabs([scaling])
-    if dialog.exec() != QPrintDialog.DialogCode.Accepted:
+def run_print_dialog(
+    parent: QWidget, printer: QPrinter, doc: Document, current: int, tokens: Tokens = LIGHT
+) -> None:
+    """Ask for printer, pages and page setup, then print with a cancellable progress."""
+    title = f"Print “{doc.path.name}”"
+    dialog = PrintDialog(title, doc.page_count, current, parent=parent, tokens=tokens)
+    accepted = dialog.exec() == QDialog.DialogCode.Accepted
+    choices = dialog.choices()
+    dialog.deleteLater()
+    if not accepted:
         return
-    pages = pages_to_print(printer, doc.page_count, current)
+    if choices.printer == PDF_TARGET:
+        target = dialogs.ask_save_path(
+            parent, "Save as PDF", doc.path.with_name(f"{doc.path.stem} (printed).pdf")
+        )
+        if target is None:
+            return
+        printer.setOutputFileName(str(target))
+    apply_choices(printer, choices)
+    pages = choices.pages
     progress = QProgressDialog("Preparing pages…", "Cancel", 0, len(pages), parent)
     progress.setWindowTitle("Printing")
     progress.setWindowModality(Qt.WindowModality.WindowModal)
@@ -141,5 +115,6 @@ def run_print_dialog(parent: QWidget, printer: QPrinter, doc: Document, current:
         progress.setLabelText(f"Page {done} of {len(pages)}")
         return not progress.wasCanceled()
 
-    print_document(doc, printer, pages, scaling.fit.isChecked(), step)
+    print_document(doc, printer, pages, choices.fit, step, choices.auto_rotate)
     progress.close()
+    progress.deleteLater()

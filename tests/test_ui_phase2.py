@@ -20,7 +20,7 @@ from pdr_sign.services.recent import RecentFiles
 from pdr_sign.services.settings import Settings
 from pdr_sign.ui.document_tab import DocumentTab
 from pdr_sign.ui.main_window import MainWindow
-from pdr_sign.ui.printing import pages_to_print, placement, print_document
+from pdr_sign.ui.printing import placement, print_document
 from tests.conftest import FakeClipboard, trigger_shortcut
 
 
@@ -198,16 +198,6 @@ def test_print_cancel(qapp: QApplication, text_pdf: Path, tmp_path: Path) -> Non
     doc.close()
 
 
-def test_page_range_selection(qapp: QApplication) -> None:
-    printer = QPrinter()
-    assert pages_to_print(printer, 4, current=2) == [0, 1, 2, 3]
-    printer.setPrintRange(QPrinter.PrintRange.CurrentPage)
-    assert pages_to_print(printer, 4, current=2) == [2]
-    printer.setPrintRange(QPrinter.PrintRange.PageRange)
-    printer.setFromTo(2, 9)
-    assert pages_to_print(printer, 4, current=0) == [1, 2, 3]
-
-
 def test_actual_size_placement() -> None:
     from PySide6.QtCore import QRectF
 
@@ -218,3 +208,6 @@ def test_actual_size_placement() -> None:
     target, rotate = placement(842, 595, paper, 300, fit=True)
     assert rotate
     assert target.width() <= 3508 + 1 and target.height() <= 2480 + 1
+    # A forced orientation never turns pages.
+    _target, rotate = placement(842, 595, paper, 300, fit=True, auto_rotate=False)
+    assert not rotate

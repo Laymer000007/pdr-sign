@@ -52,7 +52,9 @@ def print_current(window: MainWindow) -> None:
         return
     if window._printer is None:  # kept so printer choices persist
         window._printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-    printing.run_print_dialog(window, window._printer, tab.doc, tab.view.current_page)
+    printing.run_print_dialog(
+        window, window._printer, tab.doc, tab.view.current_page, window.tokens
+    )
 
 
 def close_button(window: MainWindow, tab: DocumentTab) -> QToolButton:

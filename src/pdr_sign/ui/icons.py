@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from functools import cache
+from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QRectF, QSize, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
@@ -22,6 +25,16 @@ def _svg_source(name: str) -> str:
 def svg_data(name: str, color: str) -> bytes:
     """The icon's SVG with ``currentColor`` replaced by ``color``."""
     return _svg_source(name).replace("currentColor", color).encode("utf-8")
+
+
+@cache
+def svg_file(name: str, color: str) -> str:
+    """A recoloured copy on disk, for stylesheet ``url()`` (combo-box arrows)."""
+    folder = Path(tempfile.gettempdir()) / f"pdr-sign-icons-{os.getuid()}"
+    folder.mkdir(mode=0o700, exist_ok=True)
+    path = folder / f"{name}-{color.lstrip('#')}.svg"
+    path.write_bytes(svg_data(name, color))
+    return path.as_posix()
 
 
 @cache

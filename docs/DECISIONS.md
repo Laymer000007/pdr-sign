@@ -415,3 +415,29 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   app ID stay `pdr-sign` / `io.github.Laymer000007.PdrSign`. The icon SVG's own
   `<title>` is left as delivered (byte-for-byte). Running text that says "PDR" (for
   example the owner-worded signed-copy confirmation) is unchanged.
+
+## Print: one dialog of our own (not the portal, not Qt's)
+
+- **Investigated the Print portal** (`org.freedesktop.portal.Print`, v4 on Ubuntu
+  26.04; reachable from PySide6's QtDBus). It shows GNOME's own dialog via
+  `PreparePrint`, then `Print` takes a finished file descriptor. Not used, because:
+  the portal dialog can't carry app options, so "Fit to page / Actual size" would be
+  lost (it only has a percentage scale); we'd have to hand over a pre-rendered file
+  and let the printing system place it, so the 300 dpi raster + rotation pipeline
+  would no longer decide the output; and it can't be exercised in CI or here without
+  a person at the dialog. Its one big plus — printing from the snap without the
+  `cups-control` plug — is noted for later.
+- **Qt's QPrintDialog** was rejected too: even expanded it keeps scaling on a tab and
+  paper/orientation behind "Properties", so not everything is visible at once.
+- **`PrintDialog`** shows printer (+ "Save as PDF"), pages (all / current / ranges like
+  `1–3, 5`), copies (+ collate), paper, orientation, scaling, two-sided and colour in
+  two columns, themed like the rest of the app. Output still goes through
+  `print_document` (300 dpi, same placement). Orientation "Automatic" (default) keeps
+  the old behaviour of turning pages to fit the sheet; Portrait/Landscape force the
+  sheet and never turn pages.
+- **Snap without CUPS access** (`snapctl is-connected` false for both `cups-control`
+  and `cups`): a banner says "To print from PDR Sign, run this once in a terminal:
+  sudo snap connect pdr-sign:cups-control" with a Copy button; "Save as PDF" still
+  works.
+- Dialog combo boxes got a themed chevron (a recoloured Lucide SVG written to a
+  private temp folder for the stylesheet) and radio buttons a themed indicator.

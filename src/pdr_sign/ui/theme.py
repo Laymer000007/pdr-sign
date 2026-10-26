@@ -220,7 +220,10 @@ def build_palette(t: Tokens) -> QPalette:
 
 
 def build_qss(t: Tokens) -> str:
+    from pdr_sign.ui.icons import svg_file
+
     r = RADIUS
+    arrow = svg_file("chevron-down", t.muted)
     return f"""
 * {{
     font-family: "{FONT_FAMILY}";
@@ -269,6 +272,25 @@ QLineEdit, QComboBox, QSpinBox {{
     selection-background-color: {t.accent}; selection-color: {t.on_accent};
 }}
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 1px solid {t.accent_fg}; }}
+QRadioButton::indicator {{
+    width: 14px; height: 14px; border-radius: 8px;
+    border: 1px solid {t.muted}; background: {t.surface};
+}}
+QRadioButton::indicator:checked {{
+    /* same 16 px outer size as unchecked: 6 + 2 * 5 */
+    width: 6px; height: 6px; border: 5px solid {t.accent}; background: {t.on_accent};
+}}
+QRadioButton::indicator:focus {{ border-color: {t.accent_fg}; }}
+QDialog QComboBox {{ padding-right: 28px; min-height: 20px; }}
+QDialog QComboBox::drop-down {{
+    subcontrol-origin: padding; subcontrol-position: center right;
+    width: 24px; border: none;
+}}
+QDialog QComboBox::down-arrow {{ image: url({arrow}); width: 14px; height: 14px; }}
+QComboBox QAbstractItemView {{
+    background: {t.surface}; border: 1px solid {t.border}; outline: none;
+    selection-background-color: {t.accent}; selection-color: {t.on_accent};
+}}
 
 QMenu {{
     background: {t.surface}; border: 1px solid {t.border};

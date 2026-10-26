@@ -258,7 +258,7 @@ def test_header_print_button(
 
     calls: list[str] = []
     monkeypatch.setattr(
-        printing, "run_print_dialog", lambda _w, _p, doc, _c: calls.append(doc.path.name)
+        printing, "run_print_dialog", lambda _w, _p, doc, _c, _t: calls.append(doc.path.name)
     )
     header = window.header
     button = header.print_button
