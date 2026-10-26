@@ -52,7 +52,7 @@ Install one at a time (remove the previous one first; they share the app ID).
 
 ## Snap only
 
-- [ ] `snap connections pdr-sign` shows home, removable-media, cups, desktop, wayland,
+- [ ] `snap connections pdr-sign` shows home, removable-media, cups-control, desktop, wayland,
       x11, opengl, network connected (removable-media may need a manual connect).
 - [ ] `sudo snap connect pdr-sign:cups-control` (until the store grants auto-connect),
       then printing lists the system printers.

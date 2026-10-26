@@ -29,8 +29,10 @@ apps:
     plugs:
       - home
       - removable-media
-      - cups          # printing via the CUPS snap, when installed
-      - cups-control  # printing via the system CUPS (Ubuntu desktop); needs a store grant to auto-connect
+      # Printing through the system CUPS (Ubuntu desktops). The store rejects a snap
+      # that plugs both cups and cups-control, so only this one. Needs a store grant to
+      # auto-connect; until then the print dialog shows the one-time snap connect.
+      - cups-control
       - network
       - desktop
       - desktop-legacy

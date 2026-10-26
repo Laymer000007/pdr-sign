@@ -463,3 +463,10 @@ Choices made where the build spec was silent or needed interpretation. Newest la
 - PDR Sign never charges: donations only. The spec's planned Phase 8 licence-key work
   is dropped. The reserved `Settings.license_key` is removed; `settings.load()` drops
   it from older settings files (`DROPPED_KEYS`) and rewrites them once.
+
+## Snap plugs only cups-control
+
+- The Snap Store's automated review rejects a snap that plugs both `cups` and
+  `cups-control` ("conflicting plugs"), found on the first v1.0.0 upload. The snap now
+  plugs only `cups-control`, which reaches the system CUPS that Ubuntu desktops run
+  (as Firefox and Thunderbird do). The print dialog checks only that plug.

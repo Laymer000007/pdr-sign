@@ -73,22 +73,19 @@ def locale_page_size() -> QPageSize:
 
 
 def snap_printing_blocked() -> bool:
-    """Inside a strict snap with neither the cups nor the cups-control plug connected."""
+    """Inside a strict snap whose cups-control plug isn't connected."""
     if "SNAP_NAME" not in os.environ:
         return False
     snapctl = shutil.which("snapctl")
     if snapctl is None:
         return False
-    for plug in ("cups-control", "cups"):
-        try:
-            done = subprocess.run(
-                [snapctl, "is-connected", plug], capture_output=True, timeout=3, check=False
-            )
-        except (OSError, subprocess.SubprocessError):
-            return False
-        if done.returncode == 0:
-            return False
-    return True
+    try:
+        done = subprocess.run(
+            [snapctl, "is-connected", "cups-control"], capture_output=True, timeout=3, check=False
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.returncode != 0
 
 
 @dataclass

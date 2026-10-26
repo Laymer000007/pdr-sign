@@ -118,9 +118,6 @@ def test_snap_detection(monkeypatch: pytest.MonkeyPatch) -> None:
     assert print_dialog.snap_printing_blocked()
     connected.add("cups-control")
     assert not print_dialog.snap_printing_blocked()
-    connected.clear()
-    connected.add("cups")
-    assert not print_dialog.snap_printing_blocked()
 
 
 def test_save_as_pdf_prints_the_chosen_pages(
