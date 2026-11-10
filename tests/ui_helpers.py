@@ -21,6 +21,14 @@ from pdr_sign.ui.overlay.base import OverlayGraphic
 LEFT = Qt.MouseButton.LeftButton
 
 
+def no_slide_animation(monkeypatch: object) -> None:
+    """The Fill & Sign panel slides in over 150 ms; positions measured mid-slide would
+    miss. (The desktop's reduced-motion setting does the same.)"""
+    from pdr_sign.ui import document_tab
+
+    monkeypatch.setattr(document_tab, "animations_enabled", lambda: False)  # type: ignore[attr-defined]
+
+
 def make_window(qtbot: QtBot, qapp: QApplication, tmp_path: Path) -> Iterator[MainWindow]:
     settings = Settings(theme="light", signature_dir=str(tmp_path / "sigs"))
     w = build_window(configure(qapp, settings), settings, RecentFiles(tmp_path / "recent.json"))

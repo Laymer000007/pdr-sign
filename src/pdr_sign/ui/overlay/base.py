@@ -143,6 +143,9 @@ class OverlayGraphic(QGraphicsObject):
         super().hoverMoveEvent(event)
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            # Shift-click adds to / removes from the selection, like Ctrl-click (Qt's).
+            event.setModifiers(event.modifiers() | Qt.KeyboardModifier.ControlModifier)
         self._resizing = self._handle_at(event.pos())
         self._press_rect = QRectF(self.pos(), self.content_rect().size())
         self._moved = False
@@ -158,17 +161,35 @@ class OverlayGraphic(QGraphicsObject):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:  # Qt decides on release
+            event.setModifiers(event.modifiers() | Qt.KeyboardModifier.ControlModifier)
         super().mouseReleaseEvent(event)
         if self._moved:
-            self.commit()
+            self.commit_with_peers()
         self._resizing = None
         self._moved = False
+
+    def commit_with_peers(self) -> None:
+        """Qt drags every selected item along: commit them all, as one undo step."""
+        scene = self.scene()
+        peers = [
+            g
+            for g in (scene.selectedItems() if scene is not None else [])
+            if isinstance(g, OverlayGraphic) and g is not self and g.model is self.model
+        ]
+        if not peers:
+            self.commit()
+            return
+        with self.model.one_step("Move"):
+            self.commit()
+            for peer in peers:
+                peer.commit()
 
     def end_drag(self) -> None:
         """A drag that never got its mouse release (e.g. the tab switched mid-drag):
         keep where it got to, as one undo step, and let go of the mouse."""
         if self._moved:
-            self.commit()
+            self.commit_with_peers()
         self._resizing = None
         self._moved = False
         if self.scene() is not None and self.scene().mouseGrabberItem() is self:

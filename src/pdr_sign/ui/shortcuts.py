@@ -33,10 +33,16 @@ def install(window: MainWindow) -> None:
     add(["Ctrl+0"], lambda: window._with_tab(window._apply_default_zoom))
     add(["F9"], lambda: window.set_sidebar_visible(not window.settings.show_sidebar))
     add([QKeySequence.StandardKey.Find], lambda: window._with_tab(lambda t: t.open_search()))
+    add([QKeySequence.StandardKey.Copy], lambda: window._with_tab(lambda t: t.view.copy_any()))
     add(
-        [QKeySequence.StandardKey.Copy],
-        lambda: window._with_tab(lambda t: t.view.copy_selection()),
+        [QKeySequence.StandardKey.Cut],
+        lambda: window._with_tab(lambda t: t.view.item_actions.cut()),
     )
+    add(
+        [QKeySequence.StandardKey.Paste],
+        lambda: window._with_tab(lambda t: t.view.item_actions.paste()),
+    )
+    add(["Ctrl+D"], lambda: window._with_tab(lambda t: t.view.item_actions.duplicate()))
     add([QKeySequence.StandardKey.Print], window.print_current)
     add(["Ctrl+S"], lambda: window._with_tab(lambda t: save_flow.save(window, t)))
     add(["Ctrl+Shift+S"], lambda: window._with_tab(lambda t: save_flow.save_as(window, t)))

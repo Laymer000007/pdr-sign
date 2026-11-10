@@ -6,7 +6,8 @@ before then. Every user change goes through ``QUndoStack`` commands.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QUndoCommand, QUndoStack
@@ -103,6 +104,26 @@ class FillModel(QObject):
                     f"Delete {item.kind}", lambda: self._remove(item_id), lambda: self._add(item)
                 )
             )
+
+    def add_items(self, items: list[OverlayItem], text: str = "Paste") -> None:
+        """Several items as one undo step (paste, duplicate)."""
+        with self.one_step(text):
+            for item in items:
+                self.add_item(item)
+
+    def remove_items(self, item_ids: list[str], text: str = "Delete") -> None:
+        with self.one_step(text):
+            for item_id in item_ids:
+                self.remove_item(item_id)
+
+    @contextmanager
+    def one_step(self, text: str) -> Iterator[None]:
+        """Group the changes made inside into a single undo step."""
+        self.undo_stack.beginMacro(text)
+        try:
+            yield
+        finally:
+            self.undo_stack.endMacro()
 
     def update_item(self, new: OverlayItem, merge: bool = False) -> None:
         """Replace an item (move, resize, edit). ``merge`` folds repeats into one step."""

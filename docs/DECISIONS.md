@@ -552,3 +552,20 @@ Choices made where the build spec was silent or needed interpretation. Newest la
 - A click while something is selected (an item, page text, a field or text being
   typed) only clears or commits that first. An empty box disappears when it loses
   focus, with no undo step.
+
+## Copy, cut, paste, duplicate (v1.1.0, "fill: copy/paste items")
+
+- Items travel on the system clipboard as JSON under `application/x-pdr-sign-items`
+  (`services/item_codec.py`), plus plain text of any text items for other apps — so
+  paste works across pages, tabs, windows and restarts. New ids; size, rotation,
+  colour, opacity and image kept. Paste puts the group's top-left at the pointer when
+  it's over a page, else +10 pt from where it was copied (same page index if the target
+  has it). Duplicate (Ctrl+D) is that without touching the clipboard.
+- From other apps: an image becomes a stamp item (96 px = 72 pt, longer side at most
+  200 pt), plain text a text item in the current text size and colour.
+- One undo step per paste, duplicate, cut, delete and group move (`FillModel.one_step`).
+- Multi-select: Shift- or Ctrl-click toggles; a drag from empty page space draws a
+  rubber band **when Fill & Sign is open and the drag doesn't start on page text** —
+  otherwise a drag selects PDF text as before. Dragging one selected item moves them all.
+- Ctrl+C decides by what's selected: words selected while typing in an item → that
+  text; selected items → the items; else selected page text.

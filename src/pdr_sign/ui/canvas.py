@@ -5,7 +5,7 @@ Links, text selection (drag, double-click, context menu, copy) and search highli
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QPointF, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt, Signal
 from PySide6.QtGui import (
     QClipboard,
     QColor,
@@ -17,7 +17,6 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
-    QGraphicsView,
     QMenu,
     QWidget,
 )
@@ -28,6 +27,7 @@ from pdr_sign.services.text import word_at
 from pdr_sign.ui import canvas_fill
 from pdr_sign.ui.fill_layer import FillLayer
 from pdr_sign.ui.fill_model import FillModel
+from pdr_sign.ui.item_actions import ItemActions
 from pdr_sign.ui.overlay.base import OverlayGraphic
 from pdr_sign.ui.overlay.field_paint import FieldColors
 from pdr_sign.ui.overlay.field_widgets import FieldLayer, FieldProxy, ToggleField
@@ -72,6 +72,9 @@ class Canvas(PageView):
         self._current_hit: SearchHit | None = None
         self._press_to_items = False
         self.fill_layer: FillLayer | None = None
+        self.item_actions = ItemActions(self)
+        self.pointer: QPoint | None = None  # where the mouse is over the viewport
+        self.fill_mode_active = False  # the Fill & Sign panel is open (rubber band)
         self.field_layer: FieldLayer | None = None
         self.scene().focusItemChanged.connect(self._on_focus_item)
 
@@ -201,7 +204,11 @@ class Canvas(PageView):
             self._press_had_selection = bool(
                 self.scene().selectedItems() or not self.selection.is_empty or focused
             )
-            self.scene().clearSelection()
+            adds = bool(event.modifiers() & canvas_fill.ADD_MODIFIERS)
+            if self.fill_mode_active and not self._over_text(pos):
+                self.item_actions.band_press(pos, adds)  # a drag from here selects items
+            if not adds:
+                self.scene().clearSelection()
             if focused is not None:
                 focused.clearFocus()  # commits a field being edited
             self._press_pos = pos
@@ -238,6 +245,7 @@ class Canvas(PageView):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         pos = event.position().toPoint()
+        self.pointer = pos
         if self._press_to_items:
             super().mouseMoveEvent(event)
             return
@@ -251,13 +259,15 @@ class Canvas(PageView):
             event.accept()
             return
         if self._press_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
-            if not self._selecting:
-                moved = (pos - self._press_pos).manhattanLength()
-                if moved >= QApplication.startDragDistance():
-                    start = self._page_point(self._press_pos)
-                    self._selecting = start is not None and self.selection.begin(
-                        start[0], start[1].x(), start[1].y()
-                    )
+            moved = (pos - self._press_pos).manhattanLength()
+            if moved >= QApplication.startDragDistance() and self.item_actions.band_move(pos):
+                event.accept()  # a rubber band from empty space (Fill & Sign open)
+                return
+            if not self._selecting and moved >= QApplication.startDragDistance():
+                start = self._page_point(self._press_pos)
+                self._selecting = start is not None and self.selection.begin(
+                    start[0], start[1].x(), start[1].y()
+                )
             if self._selecting:
                 self._autoscroll(pos)
                 hit = self._page_point(pos)
@@ -296,6 +306,11 @@ class Canvas(PageView):
             super().mouseReleaseEvent(event)
             return
         pos = event.position().toPoint()
+        if self.item_actions.band_release():
+            self._press_pos, self._press_link, self._selecting = None, None, False
+            event.accept()
+            return
+        self.item_actions.band_cancel()
         if self._selecting:
             self._publish_primary_selection()
         else:
@@ -326,40 +341,25 @@ class Canvas(PageView):
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
-        hit = self._page_point(event.pos())
-        menu = QMenu(self)
-        copy = menu.addAction("Copy")
-        copy.setShortcut("Ctrl+C")
-        copy.setEnabled(not self.selection.is_empty)
-        copy.triggered.connect(self.copy_selection)
-        if hit is not None:
-            page = hit[0]
-            select = menu.addAction("Select page text")
-            select.triggered.connect(lambda: self.selection.select_page(page))
-        menu.exec(event.globalPos())
+        canvas_fill.context_menu(self, event)
+
+    def item_menu(self, pos: QPoint) -> QMenu:
+        """The right-click menu for the placed item at viewport ``pos``."""
+        return self.item_actions.menu(pos)
+
+    def copy_any(self) -> bool:
+        """Ctrl+C: the words being typed, else the selected items, else page text."""
+        return canvas_fill.copy_any(self)
+
+    def leaveEvent(self, event: QEvent) -> None:
+        self.pointer = None
+        super().leaveEvent(event)
 
     # --- keyboard -------------------------------------------------------------------
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        focus = self.scene().focusItem()
-        if focus is not None and not isinstance(focus, OverlayGraphic):
-            QGraphicsView.keyPressEvent(self, event)  # typing in a field: keys are its own
-            return
-        key = event.key()
-        layer = self.fill_layer
-        deleting = key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace)
-        if deleting and layer is not None and layer.delete_selected():
-            event.accept()
-            return
-        if key == Qt.Key.Key_Escape:
-            if layer is not None and layer.tool:
-                layer.set_tool("")
-            else:
-                self.scene().clearSelection()
-                self.selection.clear()
-            event.accept()
-            return
-        super().keyPressEvent(event)
+        if not canvas_fill.key_press(self, event):
+            super().keyPressEvent(event)
 
     def _on_focus_item(self, new: object, _old: object, reason: Qt.FocusReason) -> None:
         """Tabbing into a field or item off-screen scrolls it into view."""

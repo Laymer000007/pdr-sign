@@ -158,6 +158,7 @@ class DocumentTab(QWidget):
         """Slide the Fill & Sign panel in or out. Only MainWindow.set_fill_mode calls
         this, so the app-wide fill mode is the single source of truth."""
         self.panel_visible = visible
+        self.view.fill_mode_active = visible  # a drag from empty space selects items
         target = PANEL_WIDTH if visible else 0
         layer = self.view.fill_layer
         if not visible and layer is not None:

@@ -247,13 +247,40 @@ class FakeClipboard:
     """Stands in for the system clipboard so tests never overwrite the user's."""
 
     def __init__(self) -> None:
+        from PySide6.QtCore import QMimeData
+
         self.texts: dict[str, str] = {}
+        self.mime = QMimeData()
 
     def setText(self, text: str, mode: object = None) -> None:
-        self.texts["selection" if "Selection" in str(mode) else "clipboard"] = text
+        if "Selection" in str(mode):
+            self.texts["selection"] = text
+            return
+        from PySide6.QtCore import QMimeData
+
+        self.texts["clipboard"] = text
+        self.mime = QMimeData()
+        self.mime.setText(text)
 
     def text(self) -> str:
         return self.texts.get("clipboard", "")
+
+    def setMimeData(self, data: object, mode: object = None) -> None:
+        from PySide6.QtCore import QMimeData
+
+        assert isinstance(data, QMimeData)
+        self.mime = data
+        self.texts["clipboard"] = data.text() if data.hasText() else ""
+
+    def mimeData(self, mode: object = None) -> object:
+        return self.mime
+
+    def setImage(self, image: object, mode: object = None) -> None:
+        from PySide6.QtCore import QMimeData
+
+        self.mime = QMimeData()
+        self.mime.setImageData(image)
+        self.texts["clipboard"] = ""
 
     def supportsSelection(self) -> bool:
         return True
