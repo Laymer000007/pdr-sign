@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import (
     QCloseEvent,
     QDragEnterEvent,
@@ -139,6 +139,11 @@ class MainWindow(QMainWindow):
             self.tab_bar.setCurrentIndex((self.tab_bar.currentIndex() + step) % len(self.tabs))
 
     def _on_tab_changed(self, index: int) -> None:
+        left = self.current_tab()
+        if left is not None and (
+            index < 0 or index >= len(self.tabs) or left is not self.tabs[index]
+        ):
+            left.view.release_interaction()  # its mouse release / focus-out won't come
         if 0 <= index < len(self.tabs):
             self.stack.setCurrentWidget(self.tabs[index])
         self._refresh_chrome()
@@ -291,6 +296,11 @@ class MainWindow(QMainWindow):
         zoom = zoom_setting(tab.view.zoom, tab.view.zoom_mode)
         self.recent.touch(tab.doc.path, page=tab.view.current_page, zoom=zoom)
 
+    def changeEvent(self, event: QEvent) -> None:
+        if event.type() == QEvent.Type.ActivationChange and not self.isActiveWindow():
+            self._with_tab(lambda t: t.view.release_interaction())
+        super().changeEvent(event)
+
     def closeEvent(self, event: QCloseEvent) -> None:
         for tab in list(self.tabs):
             if not self.close_tab(tab):
@@ -310,27 +320,13 @@ class MainWindow(QMainWindow):
             self.header.set_zoom(zoom, mode)
 
     def _zoom_preset(self, value: object) -> None:
-        tab = self.current_tab()
-        if tab is None:
-            return
-        if isinstance(value, str):
-            tab.view.apply_zoom_mode(value)
-        elif isinstance(value, float):
-            tab.view.set_zoom(value)
+        window_actions.zoom_preset(self, value)
 
     def _apply_zoom_setting(self, tab: DocumentTab, value: str | None) -> None:
-        value = value or self.settings.default_zoom
-        if value in ("fit-width", "fit-page"):
-            tab.view.apply_zoom_mode(value)
-            return
-        try:
-            zoom = float(value)
-        except ValueError:
-            zoom = 1.0
-        tab.view.set_zoom(zoom if value != "100" else 1.0, osd=False)
+        window_actions.apply_zoom_setting(self, tab, value)
 
     def _apply_default_zoom(self, tab: DocumentTab) -> None:
-        self._apply_zoom_setting(tab, None)
+        window_actions.apply_zoom_setting(self, tab, None)
 
     def set_fill_mode(self, on: bool) -> None:
         """Show or hide the Fill & Sign panel (one app-wide mode, like the sidebar)."""

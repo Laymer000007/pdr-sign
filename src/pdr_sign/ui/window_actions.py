@@ -90,3 +90,26 @@ def welcome_on_first_launch(window: MainWindow) -> bool:
     settings_service.save(window.settings)
     QTimer.singleShot(300, lambda: show_welcome(window))
     return True
+
+
+def zoom_preset(window: MainWindow, value: object) -> None:
+    tab = window.current_tab()
+    if tab is None:
+        return
+    if isinstance(value, str):
+        tab.view.apply_zoom_mode(value)
+    elif isinstance(value, float):
+        tab.view.set_zoom(value)
+
+
+def apply_zoom_setting(window: MainWindow, tab: DocumentTab, value: str | None) -> None:
+    """A remembered zoom ("fit-width", "fit-page" or a factor), else the default one."""
+    value = value or window.settings.default_zoom
+    if value in ("fit-width", "fit-page"):
+        tab.view.apply_zoom_mode(value)
+        return
+    try:
+        zoom = float(value)
+    except ValueError:
+        zoom = 1.0
+    tab.view.set_zoom(zoom if value != "100" else 1.0, osd=False)

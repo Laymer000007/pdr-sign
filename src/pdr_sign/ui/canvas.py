@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from pdr_sign.services.document import Document, LinkInfo
 from pdr_sign.services.search import SearchHit
 from pdr_sign.services.text import word_at
+from pdr_sign.ui import canvas_fill
 from pdr_sign.ui.fill_layer import FillLayer
 from pdr_sign.ui.fill_model import FillModel
 from pdr_sign.ui.overlay.base import OverlayGraphic
@@ -78,6 +79,15 @@ class Canvas(PageView):
         self.field_layer = FieldLayer(model, self.page_items)
         self.fill_layer = FillLayer(model, self.page_items)
 
+    def release_interaction(self) -> None:
+        """End everything in progress (see canvas_fill.release_interaction)."""
+        canvas_fill.release_interaction(self)
+
+    def reset_press(self) -> None:
+        """Forget a press whose release won't come."""
+        self._press_to_items = self._press_field = self._selecting = False
+        self._press_pos, self._press_link = None, None
+
     # --- appearance -------------------------------------------------------------
 
     @staticmethod
@@ -93,26 +103,10 @@ class Canvas(PageView):
     # --- search highlights ---------------------------------------------------------
 
     def set_search_hits(self, hits: list[SearchHit]) -> None:
-        by_page: dict[int, list[tuple[float, float, float, float]]] = {}
-        for hit in hits:
-            by_page.setdefault(hit.page, []).append(hit.rect)
-        for page in self._search_pages | set(by_page):
-            item = self.page_items[page]
-            item.search_rects = by_page.get(page, [])
-            item.update()
-        self._search_pages = set(by_page)
+        canvas_fill.set_search_hits(self, hits)
 
     def set_current_hit(self, hit: SearchHit | None) -> None:
-        if self._current_hit is not None:
-            old = self.page_items[self._current_hit.page]
-            old.current_hit = None
-            old.update()
-        self._current_hit = hit
-        if hit is not None:
-            item = self.page_items[hit.page]
-            item.current_hit = hit.rect
-            item.update()
-            self.reveal(hit.page, hit.rect)
+        canvas_fill.set_current_hit(self, hit)
 
     # --- selection -----------------------------------------------------------------
 

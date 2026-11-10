@@ -164,6 +164,16 @@ class OverlayGraphic(QGraphicsObject):
         self._resizing = None
         self._moved = False
 
+    def end_drag(self) -> None:
+        """A drag that never got its mouse release (e.g. the tab switched mid-drag):
+        keep where it got to, as one undo step, and let go of the mouse."""
+        if self._moved:
+            self.commit()
+        self._resizing = None
+        self._moved = False
+        if self.scene() is not None and self.scene().mouseGrabberItem() is self:
+            self.ungrabMouse()
+
     def _resize_to(self, point: QPointF) -> None:
         start = self._press_rect
         assert start is not None and self._resizing is not None

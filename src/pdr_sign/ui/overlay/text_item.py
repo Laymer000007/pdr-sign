@@ -154,6 +154,14 @@ class TextGraphic(OverlayGraphic):
         elif new != self.item:
             self.model.update_item(new)
 
+    def end_editing(self) -> None:
+        """Finish typing now (as if focus had left), whether or not it has focus."""
+        if self.editing:
+            if self.editor.hasFocus():
+                self.editor.clearFocus()  # its focus-out finishes the edit
+            if self.editing:  # never had focus (inactive scene): finish directly
+                self._finish_editing()
+
     def scene_remove(self) -> None:
         scene = self.scene()
         if scene is not None:

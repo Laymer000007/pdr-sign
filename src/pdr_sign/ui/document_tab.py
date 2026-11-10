@@ -162,6 +162,7 @@ class DocumentTab(QWidget):
         layer = self.view.fill_layer
         if not visible and layer is not None:
             layer.set_tool("")
+            self.view.release_interaction()
         self._panel_slide.stop()
         if visible:
             self.panel.show()

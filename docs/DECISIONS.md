@@ -516,3 +516,19 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   was edited again. **Fix:** `_finish_editing` clears the selection. Tests drive real
   drags inside the item and every way editing ends; drags starting inside an item and
   page-text highlights were already correct and now have tests too.
+
+## Stuck item after switching tabs (v1.1.0, "fix: stuck selection across tabs")
+
+- **Cause:** pressing on an item starts a drag: the item takes the scene's mouse grab
+  and the canvas remembers "a press is going to the items". If the tab switched before
+  the mouse came up (Ctrl+Tab, a click on another tab, the window losing focus), that
+  release went to the other tab, so the hidden tab kept both. Back in it, every click
+  went to the half-finished drag: items couldn't be selected, moved or deleted. The
+  same could leave text in edit mode (not movable, skipped by Delete).
+- **Fix:** `Canvas.release_interaction()` ends whatever is in progress — finishes the
+  drag (keeping the move as one undo step), releases the grab, finishes typing, drops
+  a half-drawn line, resets the canvas's press state and clears the selection. It runs
+  when a tab is left, when the window is deactivated and when Fill & Sign closes.
+  A stress test drives 30 random sequences of real edits, mid-drag tab switches,
+  panel toggles and window deactivations, checking after every step that a left tab
+  holds nothing, and at the end that every item can be selected, moved and deleted.
