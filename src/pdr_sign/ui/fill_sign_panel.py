@@ -44,6 +44,19 @@ TOOL_BUTTONS = (
     ("stamp", "Stamp", "stamp", "Place a company stamp"),
 )
 IMAGE_TOOLS = ("initials", "signature", "stamp")
+# Shown under the tiles while a tool is on: what a click does, and how to stop.
+TOOL_HINTS = {
+    "text": "Click the page to type.",
+    "check": "Placing check marks: click the page.",
+    "cross": "Placing crosses: click the page.",
+    "dot": "Placing dots: click the page.",
+    "line": "Drawing lines: drag on the page.",
+    "date": "Click the page to place today's date.",
+    "initials": "Click the page to place your initials.",
+    "signature": "Click the page to place your signature.",
+    "stamp": "Click the page to place the stamp.",
+}
+TOOL_HINT_END = " Click a placed item to select it. Esc stops."
 TILE_COLUMNS = 3
 TILE_GAP = SPACING // 2
 # Three equal tiles across the panel's content width (panel minus 2 x 16 px padding).
@@ -91,6 +104,11 @@ class FillSignPanel(QWidget):
             self.group.addButton(button)
             self._buttons[tool] = button
             tools.addWidget(button, n // TILE_COLUMNS, n % TILE_COLUMNS)
+
+        self.tool_hint = QLabel()
+        self.tool_hint.setObjectName("Muted")
+        self.tool_hint.setWordWrap(True)
+        self.tool_hint.hide()
 
         style_label = QLabel("Text")
         style_label.setObjectName("SectionTitle")
@@ -155,6 +173,7 @@ class FillSignPanel(QWidget):
         column.setSpacing(SPACING * 1 + SPACING // 2)
         column.addWidget(title)
         column.addLayout(tools)
+        column.addWidget(self.tool_hint)
         column.addWidget(self.stamp_controls)
         column.addWidget(style_label)
         column.addLayout(color_row)
@@ -194,6 +213,8 @@ class FillSignPanel(QWidget):
     def set_tool(self, tool: str) -> None:
         for name, button in self._buttons.items():
             button.setChecked(name == tool)
+        self.tool_hint.setText(TOOL_HINTS[tool] + TOOL_HINT_END if tool in TOOL_HINTS else "")
+        self.tool_hint.setVisible(tool in TOOL_HINTS)
 
     def set_style(self, font_size: float, color: str) -> None:
         self.size_box.set_value(round(font_size))

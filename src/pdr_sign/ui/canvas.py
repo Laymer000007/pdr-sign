@@ -159,6 +159,13 @@ class Canvas(PageView):
         item = self.itemAt(pos)
         return item is not None and not isinstance(item, PageItem)
 
+    def _overlay_at(self, pos: QPoint) -> OverlayGraphic | None:
+        """The placed Fill & Sign item under ``pos`` (or whose text is), if any."""
+        item = self.itemAt(pos)
+        while item is not None and not isinstance(item, OverlayGraphic):
+            item = item.parentItem()
+        return item
+
     def _field_at(self, pos: QPoint) -> QGraphicsItem | None:
         """The form-field editor or "Sign here" box under ``pos``, if any."""
         item = self.itemAt(pos)
@@ -173,11 +180,18 @@ class Canvas(PageView):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         pos = event.position().toPoint()
-        # An active tool wins over whatever is under the pointer: form-field editors,
-        # the "Sign here" box, existing items and text selection. (Before, a field
-        # editor took the click first, so an armed signature showed a text cursor.)
+        # An active tool wins over form-field editors, the "Sign here" box and text
+        # selection (before, a field editor took the click, so an armed signature
+        # showed a text cursor). A placed item under the pointer wins over the tool:
+        # the click selects it to move, resize or delete, instead of stacking another.
         left = event.button() == Qt.MouseButton.LeftButton
-        if left and self.placing and (self._start_line(pos) or self._place_with_tool(pos)):
+        on_item = self._overlay_at(pos) is not None
+        if (
+            left
+            and self.placing
+            and not on_item
+            and (self._start_line(pos) or self._place_with_tool(pos))
+        ):
             self._press_to_items = False
             event.accept()
             return
@@ -271,7 +285,9 @@ class Canvas(PageView):
             shape = Qt.CursorShape.ArrowCursor
         self.viewport().setCursor(shape)
         super().mouseMoveEvent(event)
-        if self.placing:  # field editors set a text cursor while hovered; placing wins
+        if self.placing and self._overlay_at(pos) is None:
+            # Field editors set a text cursor while hovered; placing wins over them.
+            # Over a placed item the item's own (move) cursor shows: a click selects.
             self.viewport().setCursor(Qt.CursorShape.CrossCursor)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:

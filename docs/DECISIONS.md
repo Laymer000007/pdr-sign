@@ -532,3 +532,12 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   A stress test drives 30 random sequences of real edits, mid-drag tab switches,
   panel toggles and window deactivations, checking after every step that a left tab
   holds nothing, and at the end that every item can be selected, moved and deleted.
+
+## Clicking a placed item while a tool is on (v1.1.0, "fill: click placed item selects it")
+
+- Priority on a left click with a placing tool active: a **placed Fill & Sign item**
+  under the pointer is selected (move, resize, Delete; the tool stays on), otherwise
+  the tool places/draws, still winning over form fields and "Sign here" boxes. Over
+  items the move cursor shows instead of the crosshair.
+- The active tool's tile stays accent-filled, and a short hint under the tiles says
+  what a click does and that Esc (or clicking the tile again) stops.

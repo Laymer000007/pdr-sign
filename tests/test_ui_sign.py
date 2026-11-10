@@ -457,10 +457,13 @@ def test_double_click_with_a_sticky_tool_places_twice(window: MainWindow, form_p
     assert layer is not None
     layer.set_tool("check")
     pos = tab.view.mapFromScene(tab.view.page_items[0].mapToScene(QPointF(400, 500)))
+    second = tab.view.mapFromScene(tab.view.page_items[0].mapToScene(QPointF(440, 500)))
     # A real double-click arrives as press, release, double-click, release (QTest's
     # mouseDClick sends only the double-click, so send the first click ourselves).
+    # The quick second click lands beside the first mark: placed, not swallowed. (One
+    # landing *on* a placed mark selects it instead: test_tool_click_selects.)
     QTest.mouseClick(tab.view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
-    QTest.mouseDClick(tab.view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
+    QTest.mouseDClick(tab.view.viewport(), Qt.MouseButton.LeftButton, pos=second)
     assert [i.kind for i in tab.model.items.values()] == ["check", "check"]
 
 
