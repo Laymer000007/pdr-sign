@@ -507,3 +507,12 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   signatures stay page content (no migration).
 - Found on the way: PyMuPDF reports decimals as `float` (not `real`), so a line saved
   at a fractional thickness (e.g. 13.5 pt) used to reopen at 12 pt. Fixed and tested.
+
+## Stale blue highlight in text items (v1.1.0, "fix: stale selection highlight")
+
+- **Cause:** when typing in a text item ends (click elsewhere, Esc, focus moves), the
+  editor stops accepting input but its text cursor kept the selection, and Qt keeps
+  painting a cursor's selection in solid accent blue. The block stayed until that item
+  was edited again. **Fix:** `_finish_editing` clears the selection. Tests drive real
+  drags inside the item and every way editing ends; drags starting inside an item and
+  page-text highlights were already correct and now have tests too.

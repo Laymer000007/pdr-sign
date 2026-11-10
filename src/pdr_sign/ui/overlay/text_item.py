@@ -131,6 +131,12 @@ class TextGraphic(OverlayGraphic):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
 
     def _finish_editing(self) -> None:
+        # Drop any selection made while typing: Qt keeps painting a text cursor's
+        # selection after interaction ends, which left a blue block that never went away.
+        cursor = self.editor.textCursor()
+        if cursor.hasSelection():
+            cursor.clearSelection()
+            self.editor.setTextCursor(cursor)
         self.editor.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
         text = self.editor.toPlainText().rstrip()
