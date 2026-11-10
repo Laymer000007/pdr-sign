@@ -17,7 +17,6 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
-    QGraphicsItem,
     QGraphicsView,
     QMenu,
     QWidget,
@@ -30,7 +29,7 @@ from pdr_sign.ui import canvas_fill
 from pdr_sign.ui.fill_layer import FillLayer
 from pdr_sign.ui.fill_model import FillModel
 from pdr_sign.ui.overlay.base import OverlayGraphic
-from pdr_sign.ui.overlay.field_paint import FieldColors, SignHere
+from pdr_sign.ui.overlay.field_paint import FieldColors
 from pdr_sign.ui.overlay.field_widgets import FieldLayer, FieldProxy, ToggleField
 from pdr_sign.ui.page_item import PageItem
 from pdr_sign.ui.page_view import PageView
@@ -54,8 +53,9 @@ def translucent(hex_color: str, alpha: int) -> QColor:
 
 class Canvas(PageView):
     external_link = Signal(str)
-    # A click on a form field or "Sign here" box finished: the window opens Fill & Sign.
-    field_clicked = Signal()
+    # A click on a form field or "Sign here" box, or a click on empty page space that
+    # starts typing, finished: the window opens Fill & Sign.
+    fill_requested = Signal()
 
     def __init__(
         self, doc: Document, scheduler: RenderScheduler, parent: QWidget | None = None
@@ -66,6 +66,7 @@ class Canvas(PageView):
         self._press_pos: QPoint | None = None
         self._press_link: LinkInfo | None = None
         self._press_field = False
+        self._press_had_selection = False  # something was selected/being typed at press
         self._selecting = False
         self._search_pages: set[int] = set()
         self._current_hit: SearchHit | None = None
@@ -159,20 +160,6 @@ class Canvas(PageView):
         item = self.itemAt(pos)
         return item is not None and not isinstance(item, PageItem)
 
-    def _overlay_at(self, pos: QPoint) -> OverlayGraphic | None:
-        """The placed Fill & Sign item under ``pos`` (or whose text is), if any."""
-        item = self.itemAt(pos)
-        while item is not None and not isinstance(item, OverlayGraphic):
-            item = item.parentItem()
-        return item
-
-    def _field_at(self, pos: QPoint) -> QGraphicsItem | None:
-        """The form-field editor or "Sign here" box under ``pos``, if any."""
-        item = self.itemAt(pos)
-        while item is not None and not isinstance(item, FieldProxy | ToggleField | SignHere):
-            item = item.parentItem()
-        return item
-
     @property
     def placing(self) -> bool:
         """A placing tool is active: clicks put items down."""
@@ -185,7 +172,7 @@ class Canvas(PageView):
         # showed a text cursor). A placed item under the pointer wins over the tool:
         # the click selects it to move, resize or delete, instead of stacking another.
         left = event.button() == Qt.MouseButton.LeftButton
-        on_item = self._overlay_at(pos) is not None
+        on_item = canvas_fill.overlay_at(self, pos) is not None
         if (
             left
             and self.placing
@@ -197,12 +184,12 @@ class Canvas(PageView):
             return
         self._press_to_items = self._interactive_item_at(pos)
         if self._press_to_items:
-            field = self._field_at(pos) if left else None
+            field = canvas_fill.field_at(self, pos) if left else None
             super().mousePressEvent(event)
             # A dropdown's popup takes the release, so announce it now; everything else
             # after the release, so opening the panel can't move the field mid-click.
             if isinstance(field, FieldProxy) and isinstance(field.widget(), QComboBox):
-                self.field_clicked.emit()
+                self.fill_requested.emit()
             else:
                 self._press_field = field is not None
             return
@@ -210,8 +197,11 @@ class Canvas(PageView):
             if self._start_line(pos) or self._place_with_tool(pos):
                 event.accept()
                 return
-            self.scene().clearSelection()
             focused = self.scene().focusItem()
+            self._press_had_selection = bool(
+                self.scene().selectedItems() or not self.selection.is_empty or focused
+            )
+            self.scene().clearSelection()
             if focused is not None:
                 focused.clearFocus()  # commits a field being edited
             self._press_pos = pos
@@ -285,7 +275,7 @@ class Canvas(PageView):
             shape = Qt.CursorShape.ArrowCursor
         self.viewport().setCursor(shape)
         super().mouseMoveEvent(event)
-        if self.placing and self._overlay_at(pos) is None:
+        if self.placing and canvas_fill.overlay_at(self, pos) is None:
             # Field editors set a text cursor while hovered; placing wins over them.
             # Over a placed item the item's own (move) cursor shows: a click selects.
             self.viewport().setCursor(Qt.CursorShape.CrossCursor)
@@ -296,7 +286,7 @@ class Canvas(PageView):
             super().mouseReleaseEvent(event)
             if self._press_field:
                 self._press_field = False
-                self.field_clicked.emit()
+                self.fill_requested.emit()
             return
         if self.fill_layer is not None and self.fill_layer.draft is not None:
             self.fill_layer.end_line()
@@ -314,6 +304,8 @@ class Canvas(PageView):
                 self._follow(link)
             else:
                 self.selection.clear()
+                if link is None and not self._press_had_selection:
+                    canvas_fill.type_at(self, pos)
         self._press_pos, self._press_link, self._selecting = None, None, False
         event.accept()
 

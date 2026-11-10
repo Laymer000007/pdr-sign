@@ -541,3 +541,14 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   items the move cursor shows instead of the crosshair.
 - The active tool's tile stays accent-filled, and a short hint under the tiles says
   what a click does and that Esc (or clicking the tile again) stops.
+
+## Click anywhere to fill (v1.1.0, "fill: click to type")
+
+- A plain click (press and release without dragging) on **empty page space** — no
+  word, link, form field, "Sign here" box or placed item under the pointer — with no
+  tool active and nothing selected or being typed: opens Fill & Sign, switches on the
+  Text tool and places a text box there, ready to type (the tool is one-shot, as
+  before). "Empty" excludes page text so a double-click still selects a word.
+- A click while something is selected (an item, page text, a field or text being
+  typed) only clears or commits that first. An empty box disappears when it loses
+  focus, with no undo step.

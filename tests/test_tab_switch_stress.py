@@ -86,7 +86,8 @@ def assert_released(tab: DocumentTab) -> None:
 def assert_usable(window: MainWindow, tab: DocumentTab) -> None:
     """Every item can be selected, moved and deleted with the real mouse/keyboard."""
     show(window, tab)
-    ui.click(tab, ui.at(tab, 560, 30))  # like a user: click empty page to finish typing
+    QTest.keyClick(tab.view.viewport(), Qt.Key.Key_Escape)  # finish typing, as a user would
+    QApplication.processEvents()
     # Topmost first (items may legitimately overlap after the random drags); each is
     # deleted after its check, so the next one is always the top one at its centre.
     stacked = [i for i in tab.view.scene().items() if isinstance(i, TextGraphic)]

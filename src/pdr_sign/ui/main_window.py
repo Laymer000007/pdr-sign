@@ -213,7 +213,7 @@ class MainWindow(QMainWindow):
         tab.external_link.connect(self.open_external_link)
         tab.dirty_changed.connect(lambda _d, t=tab: self._update_tab_title(t))
         tab.fill_done.connect(lambda: self.set_fill_mode(False))
-        tab.field_clicked.connect(self._open_fill_for_field)
+        tab.fill_requested.connect(self._open_fill_for_field)
         self.tabs.append(tab)
         self.stack.addWidget(tab)
         self.stack.setCurrentWidget(tab)

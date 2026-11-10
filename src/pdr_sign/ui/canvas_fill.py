@@ -1,15 +1,54 @@
-"""Canvas helpers kept out of canvas.py: ending interactions, search highlights."""
+"""Canvas helpers kept out of canvas.py: hit tests, click to type, ending
+interactions, search highlights."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from PySide6.QtCore import QPoint
+from PySide6.QtWidgets import QGraphicsItem
+
 from pdr_sign.services.search import SearchHit
 from pdr_sign.ui.overlay.base import OverlayGraphic
+from pdr_sign.ui.overlay.field_paint import SignHere
+from pdr_sign.ui.overlay.field_widgets import FieldProxy, ToggleField
 from pdr_sign.ui.overlay.text_item import TextGraphic
 
 if TYPE_CHECKING:
     from pdr_sign.ui.canvas import Canvas
+
+
+def overlay_at(canvas: Canvas, pos: QPoint) -> OverlayGraphic | None:
+    """The placed Fill & Sign item under ``pos`` (or whose text is), if any."""
+    item = canvas.itemAt(pos)
+    while item is not None and not isinstance(item, OverlayGraphic):
+        item = item.parentItem()
+    return item
+
+
+def field_at(canvas: Canvas, pos: QPoint) -> QGraphicsItem | None:
+    """The form-field editor or "Sign here" box under ``pos``, if any."""
+    item = canvas.itemAt(pos)
+    while item is not None and not isinstance(item, FieldProxy | ToggleField | SignHere):
+        item = item.parentItem()
+    return item
+
+
+def type_at(canvas: Canvas, pos: QPoint) -> None:
+    """A plain click on empty page space (no word, link, field or item under it):
+    open Fill & Sign and start typing right there, as with the Text tool."""
+    hit = canvas._page_point(pos)
+    layer = canvas.fill_layer
+    if hit is None or layer is None or layer.tool:
+        return
+    page, local = hit
+    if not canvas.page_items[page].page_rect().contains(local) or canvas._over_text(pos):
+        return
+    if canvas.itemAt(pos) is not canvas.page_items[page]:
+        return  # a field, item or "Sign here" box is there
+    canvas.fill_requested.emit()
+    layer.set_tool("text")
+    layer.place(page, local)
 
 
 def release_interaction(canvas: Canvas) -> None:
