@@ -122,7 +122,7 @@ def _open_copy(source: Path, password: str | None) -> pymupdf.Document:
 def _apply(doc: Document, request: SaveRequest) -> None:
     stamps.read_overlays(doc, remove=True)  # current items replace the saved ones
     forms.apply_values(doc, request.values)
-    stamps.write_overlays(doc, request.items)
+    stamps.write_overlays(doc, request.items, flatten=request.flatten)
     if request.flatten:
         with doc.locked() as pdf:
             pdf.bake(annots=True, widgets=True)
@@ -150,11 +150,11 @@ def verify(
             widgets = sum(1 for i in range(pdf.page_count) for _ in pdf[i].widgets())
             annots = sum(1 for i in range(pdf.page_count) for _ in pdf[i].annots())
             text = {i: pdf[i].get_text() for i in {it.page for it in request.items}}
-        placed = Counter(it.page for it in request.items if it.is_image and it.image)
-        for page, count in placed.items():
-            if images_after[page] < images_before[page] + count:
-                raise VerificationError(f"A signature or stamp is missing on page {page + 1}.")
         if request.flatten:
+            placed = Counter(it.page for it in request.items if it.is_image and it.image)
+            for page, count in placed.items():
+                if images_after[page] < images_before[page] + count:
+                    raise VerificationError(f"A signature or stamp is missing on page {page + 1}.")
             if widgets or annots:
                 raise VerificationError("The flattened copy still has form fields or notes.")
             for item in request.items:
@@ -167,10 +167,12 @@ def verify(
         for name, value in request.values.items():
             if name in values and values[name] != value:
                 raise VerificationError(f"The field “{name}” didn't keep its new value.")
-        expected = Counter(it.kind for it in request.items if not it.is_image)
+        expected = Counter(it.kind for it in request.items if not it.is_image or it.image)
         found = Counter(it.kind for it in stamps.read_overlays(written))
         if found != expected:
-            raise VerificationError("Some text, marks or lines are missing from the saved file.")
+            raise VerificationError(
+                "Some text, marks, lines, signatures or stamps are missing from the saved file."
+            )
     finally:
         written.close()
 

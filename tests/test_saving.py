@@ -57,9 +57,11 @@ def test_save_in_place_round_trips_and_appends(form_pdf: Path) -> None:
     again = Document.open(form_pdf)
     values = forms.field_values(forms.list_fields(again))
     assert values["name"] == "Jane Ndlovu" and values["colour"] == "blue"
-    assert sorted(i.kind for i in stamps.read_overlays(again)) == ["check", "line", "text"]
+    kinds = sorted(i.kind for i in stamps.read_overlays(again))
+    # Signatures, initials and stamps come back editable too (image annotations).
+    assert kinds == ["check", "initials", "line", "signature", "stamp", "text"]
     with again.locked() as pdf:
-        assert len(pdf[0].get_image_info()) == 2 and len(pdf[1].get_image_info()) == 1
+        assert pdf[0].get_images() == [] and pdf[1].get_images() == []
     again.close()
 
 

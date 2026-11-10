@@ -172,24 +172,32 @@ def marker_png() -> bytes:
     return png_bytes(sig)
 
 
+@pytest.mark.parametrize("flatten", [True, False], ids=["signed-copy", "normal-save"])
 @pytest.mark.parametrize("rotation", [0, 90, 180, 270])
-def test_signature_is_stamped_upright_where_placed(tmp_path: Path, rotation: int) -> None:
+def test_signature_is_upright_where_placed(tmp_path: Path, rotation: int, flatten: bool) -> None:
     src = pymupdf.open()
     src.new_page(width=595, height=842).set_rotation(rotation)
     src.save(tmp_path / "blank.pdf")
     doc = Document.open(tmp_path / "blank.pdf")
     item = OverlayItem("signature", 0, (100, 200, 300, 250), image=marker_png())
-    stamps.write_overlays(doc, [item])
+    stamps.write_overlays(doc, [item], flatten=flatten)
     with doc.locked() as pdf:
         pdf.save(tmp_path / "signed.pdf")
     doc.close()
     signed = pymupdf.open(tmp_path / "signed.pdf")
     page = signed[0]
-    assert list(page.annots()) == []  # page content, not an annotation
-    (info,) = page.get_image_info()
-    bbox = pymupdf.Rect(info["bbox"]) * page.rotation_matrix
+    if flatten:  # signed copy: page content, not an annotation
+        assert list(page.annots()) == []
+        (info,) = page.get_image_info()
+        bbox = pymupdf.Rect(info["bbox"]) * page.rotation_matrix
+        assert stamps.read_overlays(Document.open(tmp_path / "signed.pdf")) == []
+    else:  # normal save: an editable image annotation
+        assert page.get_images() == []
+        (annot,) = page.annots()
+        bbox = annot.rect * page.rotation_matrix
+        (back,) = stamps.read_overlays(Document.open(tmp_path / "signed.pdf"))
+        assert back.rect == item.rect and back.image == item.image
     assert (bbox.x0, bbox.y0, bbox.x1, bbox.y1) == pytest.approx((100, 200, 300, 250), abs=0.5)
     pix = page.get_pixmap(dpi=72)
     assert pix.pixel(110, 225) == (0, 0, 255)  # the blue end is on the left, as drawn
     assert pix.pixel(290, 225) != (0, 0, 255)
-    assert stamps.read_overlays(Document.open(tmp_path / "signed.pdf")) == []

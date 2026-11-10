@@ -88,7 +88,7 @@ def run(folder: Path, show_in_folder: bool = False) -> int:
         name = forms.field_values(forms.list_fields(again))["name"]
         kinds = sorted(i.kind for i in stamps.read_overlays(again))
         again.close()
-        ok = name == "Ada" and kinds == ["line", "text"]
+        ok = name == "Ada" and kinds == ["line", "signature", "stamp", "text"]
         mode = "incremental" if result.incremental else "full"
         return ok, f"saved ({mode}), reopened: {name!r}, {kinds}"
 

@@ -1,9 +1,10 @@
 """Fill & Sign overlay items and how they are written into the PDF. Qt-free.
 
-Text, date and mark items (check, cross, dot) become FreeText annotations
-and lines become Line annotations, all tagged ``/PDR 1`` (and ``/PDRKind /<kind>``),
+Text, date and mark items (check, cross, dot) become FreeText annotations, lines
+become Line annotations, and signatures, initials and stamps become image Stamp
+annotations (see image_overlays), all tagged ``/PDR 1`` (and ``/PDRKind /<kind>``),
 so PDR can reopen them as editable items while every other viewer just shows them.
-Signatures and initials are stamped into the page content as images.
+A signed copy (``flatten``) stamps images straight into the page content instead.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from typing import Any, Literal
 import pymupdf
 
 from pdr_sign import APP_NAME
-from pdr_sign.services import sigimage
+from pdr_sign.services import image_overlays, sigimage
 from pdr_sign.services.document import Document
 from pdr_sign.services.text import Rect
 from pdr_sign.services.text_layout import item_annotation_rect, item_rect_from_annotation
@@ -98,14 +99,20 @@ def _hex(rgb: object) -> str:
     return "#{:02X}{:02X}{:02X}".format(*(round(float(c) * 255) for c in rgb[:3]))
 
 
-def write_overlays(doc: Document, items: list[OverlayItem]) -> set[int]:
-    """Add the text/mark items to the in-memory PDF. Returns the pages touched."""
+def write_overlays(doc: Document, items: list[OverlayItem], flatten: bool = False) -> set[int]:
+    """Add the items to the in-memory PDF. Returns the pages touched. With ``flatten``
+    (Save signed copy) images go into the page content rather than annotations."""
     pages: set[int] = set()
     with doc.locked() as pdf:
         for item in items:
             page = pdf[item.page]
             if item.kind in IMAGE_KINDS:
-                _write_signature(page, item)
+                if flatten:
+                    _write_signature(page, item)
+                elif item.image:
+                    image_overlays.write_image(
+                        pdf, page, item.kind, item.rect, item.image, item.rotation, item.opacity
+                    )
                 pages.add(item.page)
                 continue
             if item.kind == "line":
@@ -141,8 +148,8 @@ def write_overlays(doc: Document, items: list[OverlayItem]) -> set[int]:
 
 
 def _write_signature(page: pymupdf.Page, item: OverlayItem) -> None:
-    """Stamp a signature image into the page content. Permanent, like other Fill & Sign
-    tools: it is not an annotation and does not reopen as an editable item."""
+    """Stamp a signature image into the page content (signed copies): permanent, not
+    an annotation, never reopened as an editable item."""
     if not item.image:
         return
     image = item.image
@@ -184,7 +191,7 @@ def _read_line(
         kind="line",
         page=index,
         rect=(x1, y1, x2, y2),
-        font_size=float(size) if size_kind in ("int", "real") else DEFAULT_FONT_SIZE,
+        font_size=float(size) if size_kind in ("int", "real", "float") else DEFAULT_FONT_SIZE,
         color=_hex(stroke),
     )
 
@@ -200,10 +207,27 @@ def read_overlays(doc: Document, remove: bool = False) -> list[OverlayItem]:
         for index in range(pdf.page_count):
             page = pdf[index]
             doomed = []
-            for annot in page.annots(types=[_C.PDF_ANNOT_FREE_TEXT, _C.PDF_ANNOT_LINE]):
+            kinds = [_C.PDF_ANNOT_FREE_TEXT, _C.PDF_ANNOT_LINE, _C.PDF_ANNOT_STAMP]
+            for annot in page.annots(types=kinds):
                 if pdf.xref_get_key(annot.xref, "PDR")[1] != "1":
                     continue
                 kind = pdf.xref_get_key(annot.xref, "PDRKind")[1].lstrip("/")
+                if kind in IMAGE_KINDS:
+                    image = image_overlays.read_image(pdf, annot)
+                    if image is not None:
+                        rect, png, rotation, opacity = image
+                        items.append(
+                            OverlayItem(
+                                kind=kind,
+                                page=index,
+                                rect=rect,
+                                image=png,
+                                rotation=rotation,
+                                opacity=opacity,
+                            )
+                        )
+                        doomed.append(annot)
+                    continue
                 if kind == "line":
                     line = _read_line(pdf, page, annot, index)
                     if line is not None:

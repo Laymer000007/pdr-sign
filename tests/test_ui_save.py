@@ -86,10 +86,10 @@ def test_save_reloads_with_items_editable(qtbot: QtBot, window: MainWindow, form
     assert not new.model.dirty and not window.header.save_button.isEnabled()
     assert new.model.values["name"] == "Jane Ndlovu"
     kinds = sorted(i.kind for i in new.model.items.values())
-    assert kinds == ["line", "text"]  # editable again; the signature is now page content
+    assert kinds == ["line", "signature", "text"]  # all editable again, signature too
     with new.doc.locked() as pdf:
-        assert len(pdf[1].get_image_info()) == 1
-        assert list(pdf[0].annots()) == []  # editable items aren't drawn twice
+        assert pdf[1].get_images() == []  # not stamped into the page
+        assert list(pdf[0].annots()) == list(pdf[1].annots()) == []  # not drawn twice
     assert not list(form_pdf.parent.glob("*.pdr-*"))
 
 

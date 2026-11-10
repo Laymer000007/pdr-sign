@@ -491,3 +491,19 @@ Choices made where the build spec was silent or needed interpretation. Newest la
 - **Not changed:** check/cross/dot marks are vector strokes on screen and ZapfDingbats
   glyphs in the file, so their shape differs slightly; dropdown and list editors keep
   Qt's own drawing; comb fields stay centred.
+
+## Signatures stay editable after Save (v1.1.0, "save: editable signatures")
+
+- Normal Save writes signatures, initials and stamps as image **Stamp annotations**
+  tagged `/PDR 1` + `/PDRKind`, like text and marks (`services/image_overlays.py`).
+  The appearance is the image as placed (turned and faded via `sigimage.bake`, then
+  counter-turned for the page's /Rotate), so Firefox (pdf.js), Papers (Poppler) and
+  MuPDF all show it exactly like the signed copy (pixel test on all four rotations).
+  Beside it: `/PDRImage` (the original PNG, untouched), `/PDRRect` (the box in visible
+  page coordinates), `/PDRRotation`, `/PDROpacity` — so it reopens as an item you can
+  move, resize, turn, fade or delete.
+- Save signed copy is unchanged: images go into the page content, permanently.
+- Files from v1.0.0 whose signatures were stamped into the page still open; those
+  signatures stay page content (no migration).
+- Found on the way: PyMuPDF reports decimals as `float` (not `real`), so a line saved
+  at a fractional thickness (e.g. 13.5 pt) used to reopen at 12 pt. Fixed and tested.
