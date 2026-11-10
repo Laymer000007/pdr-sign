@@ -10,7 +10,7 @@ import pytest
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QComboBox, QLineEdit, QListWidget, QPlainTextEdit
+from PySide6.QtWidgets import QApplication, QComboBox, QLineEdit, QListWidget, QTextEdit
 from pytestqt.qtbot import QtBot
 
 from pdr_sign.app import build_window, configure
@@ -88,7 +88,7 @@ def test_every_fillable_field_gets_an_editor(window: MainWindow, form_pdf: Path)
     tab = open_tab(window, form_pdf)
     p = proxies(tab)
     assert isinstance(p["name"].widget(), QLineEdit)
-    assert isinstance(p["notes"].widget(), QPlainTextEdit)
+    assert isinstance(p["notes"].widget(), QTextEdit)
     assert isinstance(p["country"].widget(), QComboBox)
     assert p["city"].widget().isEditable()  # type: ignore[attr-defined]
     assert isinstance(p["fruit"].widget(), QListWidget)

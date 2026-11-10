@@ -24,14 +24,21 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QPlainTextEdit,
     QSizePolicy,
     QStyleOptionGraphicsItem,
+    QTextEdit,
     QWidget,
 )
 
 from pdr_sign.services.forms import FieldInfo, FieldValue
-from pdr_sign.ui.overlay.field_paint import FieldColors, SignHere, auto_font_px, field_style
+from pdr_sign.ui.overlay.field_paint import (
+    FieldColors,
+    SignHere,
+    auto_font_px,
+    field_style,
+    lay_out_area,
+    lay_out_line,
+)
 
 if TYPE_CHECKING:
     from pdr_sign.ui.fill_model import FillModel
@@ -40,8 +47,18 @@ if TYPE_CHECKING:
 EXPORT_ROLE = Qt.ItemDataRole.UserRole
 
 
-class _PlainText(QPlainTextEdit):
+class _PlainText(QTextEdit):
+    """A multi-line field: plain text only. A QTextEdit rather than a QPlainTextEdit,
+    because only it honours the fixed line spacing the saved appearance uses."""
+
     editing_finished = Signal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setAcceptRichText(False)
+
+    def set_text_margins(self, left: int, top: int) -> None:
+        self.setViewportMargins(left, top, 0, 0)
 
     def focusOutEvent(self, event: QFocusEvent) -> None:
         super().focusOutEvent(event)
@@ -228,15 +245,16 @@ class FieldLayer:
             area = _PlainText()
             area.setFrameShape(QFrame.Shape.NoFrame)
             area.setTabChangesFocus(True)
-            area.document().setDocumentMargin(1)
             area.editing_finished.connect(
                 lambda: self.model.set_field_value(name, area.toPlainText())
             )
             proxy = FieldProxy(field, area, page)
+            lay_out_area(area, field)
 
             def set_area(v: FieldValue) -> None:
                 if area.toPlainText() != v:
                     area.setPlainText(str(v))
+                    lay_out_area(area, field)  # a new document loses the line spacing
 
             self._setters[id(proxy)] = set_area
             return proxy
@@ -250,6 +268,9 @@ class FieldLayer:
             line.setEchoMode(QLineEdit.EchoMode.Password)
         line.editingFinished.connect(lambda: self.model.set_field_value(name, line.text()))
         proxy = FieldProxy(field, line, page)
+        lay_out_line(line, field)
+        if field.font_size <= 0:  # auto size: shrinks as the text grows, as when saved
+            line.textChanged.connect(lambda _t: lay_out_line(line, field))
 
         def set_line(v: FieldValue) -> None:
             if line.text() != v:

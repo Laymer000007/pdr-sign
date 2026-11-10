@@ -470,3 +470,24 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   `cups-control` ("conflicting plugs"), found on the first v1.0.0 upload. The snap now
   plugs only `cups-control`, which reaches the system CUPS that Ubuntu desktops run
   (as Firefox and Thunderbird do). The print dialog checks only that plug.
+
+## Text lands where it was drawn (v1.1.0, "fix: flatten position")
+
+- **Cause:** the canvas drew text with Qt's own layout and the file with MuPDF's, and
+  they disagree: Qt's Helvetica substitute (Nimbus Sans) has a taller ascent and line
+  height, the editor sat 2 pt in and 1 pt down, Qt kerns and MuPDF doesn't, and
+  "auto"-size form fields got different sizes (PDR showed 10/12 pt; MuPDF writes 12 pt
+  for multi-line fields and box-height-minus-4 for single-line ones). The saved file
+  was self-consistent (normal save and signed copy render identically), but PDR's
+  screen showed text ~0.3 x font size lower and a little to the right. Long 24 pt lines
+  could also wrap/clip because the annotation box was narrower than the text.
+- **Fix:** `services/text_layout.py` encodes MuPDF's rules (checked case by case
+  against MuPDF's appearance streams). Text items put their first baseline at
+  0.8 x size below the annotation top with 1.2 x size line spacing; field editors use
+  MuPDF's size, left inset and baseline (multi-line fields became a QTextEdit, which
+  honours fixed line spacing). Kerning and hinting are off for both. The saved
+  FreeText box is inset by the canvas padding (2 pt, 1 pt) and is never narrower than
+  the text; reading subtracts the inset, so v1.0.0 files reopen where their text is.
+- **Not changed:** check/cross/dot marks are vector strokes on screen and ZapfDingbats
+  glyphs in the file, so their shape differs slightly; dropdown and list editors keep
+  Qt's own drawing; comb fields stay centred.

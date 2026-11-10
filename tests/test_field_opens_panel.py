@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QComboBox, QListWidget, QPlainTextEdit
+from PySide6.QtWidgets import QApplication, QComboBox, QListWidget, QTextEdit
 from pytestqt.qtbot import QtBot
 
 from pdr_sign.app import build_window, configure
@@ -152,9 +152,9 @@ def test_page_text_click_keeps_panel_closed_and_selects(window: MainWindow, text
 
 
 def test_multiline_editor_is_the_text_widget(window: MainWindow, form_pdf: Path) -> None:
-    # Guard for the helper: "notes" is a QPlainTextEdit field, also a FieldProxy.
+    # Guard for the helper: "notes" is a QTextEdit field, also a FieldProxy.
     tab = open_tab(window, form_pdf)
     notes = graphic(tab, "notes")
-    assert isinstance(notes, FieldProxy) and isinstance(notes.widget(), QPlainTextEdit)
+    assert isinstance(notes, FieldProxy) and isinstance(notes.widget(), QTextEdit)
     click(tab, centre_of(tab, 0, notes.field.rect))
     assert window.fill_mode

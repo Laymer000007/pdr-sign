@@ -6,7 +6,16 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFocusEvent, QFont, QKeyEvent, QPainter
+from PySide6.QtGui import (
+    QColor,
+    QFocusEvent,
+    QFont,
+    QFontMetricsF,
+    QKeyEvent,
+    QPainter,
+    QTextBlockFormat,
+    QTextCursor,
+)
 from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsSceneMouseEvent,
@@ -14,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from pdr_sign.services.stamps import OverlayItem
+from pdr_sign.services.text_layout import ITEM_BASELINE, ITEM_INSET_X, ITEM_INSET_Y, ITEM_LINE
 from pdr_sign.ui.overlay.base import OverlayGraphic
 
 if TYPE_CHECKING:
@@ -21,13 +31,16 @@ if TYPE_CHECKING:
 
 # Saved text uses Helvetica, so edit in the closest local match.
 TEXT_FAMILY = "Helvetica"
-PAD = 2.0  # points between the box and the text
+PAD = ITEM_INSET_X  # points between the box and the text
 
 
 def text_font(size: float) -> QFont:
     font = QFont(TEXT_FAMILY)
     font.setPixelSize(max(1, round(size)))  # 1 scene unit = 1 pt
     font.setStyleHint(QFont.StyleHint.SansSerif)
+    # MuPDF doesn't kern or hint; neither may we, or lines end at a different width.
+    font.setKerning(False)
+    font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
     return font
 
 
@@ -55,7 +68,6 @@ class TextGraphic(OverlayGraphic):
         super().__init__(item, model, parent)
         self.pending = pending
         self.editor = _Editor(self)
-        self.editor.setPos(PAD, PAD / 2)
         self.editor.document().setDocumentMargin(0)
         self.editor.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.editor.document().contentsChanged.connect(self._fit)
@@ -63,11 +75,33 @@ class TextGraphic(OverlayGraphic):
         self._show(item)
 
     def _show(self, item: OverlayItem) -> None:
-        self.editor.setFont(text_font(item.font_size))
+        font = text_font(item.font_size)
+        self.editor.setFont(font)
         self.editor.setDefaultTextColor(QColor(item.color))
         if self.editor.toPlainText() != item.text:
             self.editor.setPlainText(item.text)
+        # Lay the text out as MuPDF will in the saved file (services/text_layout):
+        # fixed line spacing, first baseline a fixed distance below the box top.
+        size = item.font_size
+        block = QTextBlockFormat()
+        block.setLineHeight(ITEM_LINE * size, QTextBlockFormat.LineHeightTypes.FixedHeight.value)
+        cursor = QTextCursor(self.editor.document())
+        cursor.select(QTextCursor.SelectionType.Document)
+        cursor.mergeBlockFormat(block)
         self._fit()
+
+    def _place_baseline(self) -> None:
+        """Move the editor so Qt's first baseline is where MuPDF's will be. Measured
+        from Qt's own layout: with a fixed line height Qt shifts the first line."""
+        document = self.editor.document()
+        document.size()  # lays the document out
+        line = document.firstBlock().layout().lineAt(0)
+        size = self.item.font_size
+        if line.isValid():
+            offset = line.y() + line.ascent()
+        else:
+            offset = QFontMetricsF(self.editor.font()).ascent()
+        self.editor.setPos(ITEM_INSET_X, ITEM_INSET_Y + ITEM_BASELINE * size - offset)
 
     def apply(self, item: OverlayItem) -> None:
         self.item = item
@@ -75,9 +109,12 @@ class TextGraphic(OverlayGraphic):
         self._show(item)
 
     def _fit(self) -> None:
-        size = self.editor.document().size()
-        min_width = self.item.font_size * 2
-        self.set_size(max(size.width(), min_width) + 2 * PAD, size.height() + PAD)
+        document = self.editor.document()
+        size = self.item.font_size
+        width = max(document.idealWidth(), size * 2)
+        lines = max(1, document.blockCount())
+        self.set_size(width + 2 * ITEM_INSET_X, lines * ITEM_LINE * size + 2 * ITEM_INSET_Y)
+        self._place_baseline()
 
     @property
     def editing(self) -> bool:

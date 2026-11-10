@@ -19,6 +19,7 @@ from pdr_sign import APP_NAME
 from pdr_sign.services import sigimage
 from pdr_sign.services.document import Document
 from pdr_sign.services.text import Rect
+from pdr_sign.services.text_layout import item_annotation_rect, item_rect_from_annotation
 
 # PyMuPDF defines its constants at import time; its type stubs don't list them.
 _C: Any = pymupdf
@@ -111,7 +112,10 @@ def write_overlays(doc: Document, items: list[OverlayItem]) -> set[int]:
                 _write_line(pdf, page, item)
                 pages.add(item.page)
                 continue
-            rect = pymupdf.Rect(item.rect) * page.derotation_matrix
+            box = item.rect
+            if not item.is_mark:  # text lands where the canvas drew it (text_layout)
+                box = item_annotation_rect(item.rect, item.text, item.font_size)
+            rect = pymupdf.Rect(box) * page.derotation_matrix
             if item.is_mark:
                 text, font = MARK_GLYPHS[item.kind], "ZaDb"
             else:
@@ -209,13 +213,16 @@ def read_overlays(doc: Document, remove: bool = False) -> list[OverlayItem]:
                 if kind not in (*TEXT_KINDS, *MARK_KINDS):
                     continue
                 r = annot.rect * page.rotation_matrix
+                box = (r.x0, r.y0, r.x1, r.y1)
+                if kind in TEXT_KINDS:
+                    box = item_rect_from_annotation(box)
                 info = annot.info
                 da = _parse_da(pdf.xref_get_key(annot.xref, "DA")[1])
                 items.append(
                     OverlayItem(
                         kind=kind,
                         page=index,
-                        rect=(r.x0, r.y0, r.x1, r.y1),
+                        rect=box,
                         text="" if kind in MARK_KINDS else info.get("content", ""),
                         font_size=da[0] or DEFAULT_FONT_SIZE,
                         color=da[1],
