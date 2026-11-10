@@ -9,11 +9,12 @@ def main() -> int:
 
         return selftest.main(sys.argv[2:])
 
-    from pdr_sign.services.instance import file_args, send_to_running
+    from pdr_sign.services.instance import file_args, send_to_running, wants_new_window
 
     files = file_args(sys.argv)
-    if send_to_running(files):
-        return 0  # the running window opens them in new tabs; Qt never loads here
+    new_window = wants_new_window(sys.argv)
+    if send_to_running(files, new_window=new_window):
+        return 0  # the running instance opens them (or a window); Qt never loads here
 
     from pdr_sign.app import run
 

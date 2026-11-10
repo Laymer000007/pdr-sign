@@ -15,5 +15,5 @@ Keywords=PDF;reader;viewer;fill;form;sign;signature;stamp;
 Actions=new-window;
 
 [Desktop Action new-window]
-Name=Open a PDF
-Exec=pdr-sign
+Name=New Window
+Exec=pdr-sign --new-window

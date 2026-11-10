@@ -5,9 +5,9 @@ from __future__ import annotations
 import contextlib
 from collections.abc import Callable
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, QMetaObject
 from PySide6.QtGui import (
     QCloseEvent,
     QDragEnterEvent,
@@ -31,15 +31,19 @@ from pdr_sign.services.document import Document, DocumentError, PasswordRequired
 from pdr_sign.services.recent import RecentFiles
 from pdr_sign.services.settings import Settings
 from pdr_sign.services.signatures import SignatureStore
-from pdr_sign.ui import dialogs, icons, save_flow, shortcuts, window_actions
+from pdr_sign.ui import dialogs, icons, save_flow, shortcuts, window_actions, window_tabs
 from pdr_sign.ui.canvas import Canvas
 from pdr_sign.ui.document_tab import DocumentTab
 from pdr_sign.ui.empty_state import EmptyState
 from pdr_sign.ui.header_bar import HeaderBar
 from pdr_sign.ui.render_scheduler import RenderScheduler
 from pdr_sign.ui.signature_library import SignatureLibrary
+from pdr_sign.ui.tab_bar import DocumentTabBar
 from pdr_sign.ui.theme import Tokens
 from pdr_sign.ui.window_helpers import is_pdf_url, window_title, zoom_setting
+
+if TYPE_CHECKING:
+    from pdr_sign.ui.windows import WindowManager
 
 
 class ThemeLike(Protocol):
@@ -53,8 +57,11 @@ class MainWindow(QMainWindow):
         settings: Settings | None = None,
         recent: RecentFiles | None = None,
         scheduler: RenderScheduler | None = None,
+        library: SignatureLibrary | None = None,
+        manager: WindowManager | None = None,
     ) -> None:
         super().__init__()
+        self.manager = manager
         self.settings = settings or Settings()
         self.recent = recent or RecentFiles()
         self.scheduler = scheduler or RenderScheduler()
@@ -64,12 +71,7 @@ class MainWindow(QMainWindow):
         self.setAcceptDrops(True)
 
         self.header = HeaderBar(self)
-        self.tab_bar = QTabBar(self)
-        self.tab_bar.setObjectName("DocumentTabs")
-        self.tab_bar.setDocumentMode(True)
-        self.tab_bar.setMovable(True)
-        self.tab_bar.setExpanding(False)
-        self.tab_bar.setElideMode(Qt.TextElideMode.ElideMiddle)
+        self.tab_bar = DocumentTabBar(self)
         self.tab_bar.hide()
         self.stack = QStackedWidget(self)
         self.empty_state = EmptyState(self)
@@ -85,9 +87,12 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self.tabs: list[DocumentTab] = []
+        self._tab_links: dict[DocumentTab, list[QMetaObject.Connection]] = {}
         self._printer: QPrinter | None = None  # kept so printer choices persist
         self.fill_mode = False
-        self.signatures = SignatureLibrary(SignatureStore(self.settings.signature_dir), self)
+        self.signatures = library or SignatureLibrary(
+            SignatureStore(self.settings.signature_dir), self
+        )
         self.theme_controller: ThemeLike | None = None  # set by app.build_window
         self._connect()
         shortcuts.install(self)
@@ -118,10 +123,13 @@ class MainWindow(QMainWindow):
         )
         h.settings_requested.connect(self.open_settings)
         h.support_requested.connect(lambda: window_actions.show_welcome(self))
+        h.new_window_requested.connect(self.new_window)
         self.empty_state.open_requested.connect(self.browse)
         self.empty_state.recent_requested.connect(lambda p: self.open_paths([p]))
         self.tab_bar.currentChanged.connect(self._on_tab_changed)
         self.tab_bar.tabMoved.connect(self._on_tab_moved)
+        self.tab_bar.move_to_new_window.connect(lambda i: self.move_tab_to_new_window(self.tabs[i]))
+        self.tab_bar.close_requested.connect(lambda i: self.close_tab(self.tabs[i]))
 
     # --- tabs -----------------------------------------------------------------
 
@@ -179,7 +187,11 @@ class MainWindow(QMainWindow):
     def open_paths(self, paths: list[str]) -> None:
         for raw in paths:
             path = Path(raw).expanduser().resolve()
+            found = self.manager.find(path) if self.manager is not None else None
             existing = next((t for t in self.tabs if t.doc.path == path), None)
+            if found is not None and found[0] is not self:
+                found[0].show_tab(found[1])  # already open in another window
+                continue
             if existing is not None:
                 self.tab_bar.setCurrentIndex(self.tabs.index(existing))
                 continue
@@ -208,19 +220,7 @@ class MainWindow(QMainWindow):
 
     def _add_tab(self, doc: Document) -> None:
         tab = DocumentTab(doc, self.scheduler, self, library=self.signatures)
-        tab.view.current_page_changed.connect(lambda i, t=tab: self._on_page(t, i))
-        tab.view.zoom_changed.connect(lambda z, m, t=tab: self._on_zoom(t, z, m))
-        tab.external_link.connect(self.open_external_link)
-        tab.dirty_changed.connect(lambda _d, t=tab: self._update_tab_title(t))
-        tab.fill_done.connect(lambda: self.set_fill_mode(False))
-        tab.fill_requested.connect(self._open_fill_for_field)
-        self.tabs.append(tab)
-        self.stack.addWidget(tab)
-        self.stack.setCurrentWidget(tab)
-        tab.set_sidebar_visible(self.settings.show_sidebar, animate=False)
-        tab.set_tokens(self.tokens)
-        tab.set_panel_visible(self.fill_mode, animate=False)
-        tab.set_default_ink(self.settings.default_text_color)
+        window_tabs.attach(self, tab)
 
         entry = self.recent.get(doc.path)
         self._apply_zoom_setting(tab, entry.zoom if entry and entry.zoom else None)
@@ -230,15 +230,6 @@ class MainWindow(QMainWindow):
         # A missing thumbnail only affects the recent grid.
         with contextlib.suppress(OSError, DocumentError, RuntimeError):
             recent_service.save_thumbnail(doc.path, doc.thumbnail_png())
-
-        self.tab_bar.blockSignals(True)
-        index = self.tab_bar.addTab(doc.path.name)
-        self.tab_bar.setTabToolTip(index, str(doc.path))
-        self.tab_bar.setTabButton(
-            index, QTabBar.ButtonPosition.RightSide, window_actions.close_button(self, tab)
-        )
-        self.tab_bar.setCurrentIndex(index)
-        self.tab_bar.blockSignals(False)
         self._refresh_chrome()
 
     def close_tab(self, tab: DocumentTab, ask: bool = True) -> bool:
@@ -246,35 +237,33 @@ class MainWindow(QMainWindow):
         if ask and not save_flow.confirm_close(self, tab):
             return False
         self._remember(tab)
-        index = self.tabs.index(tab)
-        self.tabs.pop(index)
-        self.tab_bar.blockSignals(True)
-        self.tab_bar.removeTab(index)
-        self.tab_bar.blockSignals(False)
-        self.stack.removeWidget(tab)
+        window_tabs.detach(self, tab)
         tab.close_document()
         tab.deleteLater()
-        if self.tabs:
-            self.stack.setCurrentWidget(self.tabs[self.tab_bar.currentIndex()])
-        self._refresh_chrome()
         return True
 
+    # --- windows -----------------------------------------------------------------
+
+    def new_window(self) -> MainWindow | None:
+        return self.manager.new_window() if self.manager is not None else None
+
+    def move_tab_to_new_window(self, tab: DocumentTab) -> MainWindow | None:
+        """Move ``tab`` (its document, undo history, page and zoom) to a new window."""
+        target = self.new_window()
+        if target is not None:
+            window_tabs.detach(self, tab)
+            window_tabs.attach(target, tab)
+            target._refresh_chrome()
+        return target
+
+    def show_tab(self, tab: DocumentTab) -> None:
+        self.tab_bar.setCurrentIndex(self.tabs.index(tab))
+        self.raise_()
+        self.activateWindow()
+
     def reload_tab(self, tab: DocumentTab, path: Path) -> DocumentTab | None:
-        """Reopen ``tab`` from ``path`` (after saving) in the same place, page and zoom."""
-        index = self.tabs.index(tab)
-        password = tab.doc.password
-        self.close_tab(tab, ask=False)  # remembers page and zoom for the reopen
-        try:
-            doc = Document.open(path, password)
-        except DocumentError as exc:
-            dialogs.show_error(self, "Couldn't reopen the saved file", str(exc))
-            return None
-        self._add_tab(doc)
-        new = self.tabs[-1]
-        if index < len(self.tabs) - 1:
-            self.tab_bar.moveTab(len(self.tabs) - 1, index)
-            self.tab_bar.setCurrentIndex(index)
-        return new
+        """Reopen ``tab`` from ``path`` (after saving) in the same place."""
+        return window_tabs.reload(self, tab, path)
 
     def open_settings(self) -> None:
         window_actions.open_settings(self)
@@ -301,6 +290,11 @@ class MainWindow(QMainWindow):
             self._with_tab(lambda t: t.view.release_interaction())
         super().changeEvent(event)
 
+    def event(self, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.WindowActivate and self.manager is not None:
+            self.manager.activated(self)  # Open With goes to the last focused window
+        return super().event(event)
+
     def closeEvent(self, event: QCloseEvent) -> None:
         for tab in list(self.tabs):
             if not self.close_tab(tab):
@@ -308,6 +302,8 @@ class MainWindow(QMainWindow):
                 return
         settings_service.save(self.settings)
         super().closeEvent(event)
+        if self.manager is not None:
+            self.manager.closed(self)  # the app quits when the last one closes
 
     # --- view state --------------------------------------------------------------
 

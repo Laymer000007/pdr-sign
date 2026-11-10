@@ -23,6 +23,7 @@ class InstanceServer(QObject):
     """Listens for later launches. Emits the files they asked to open (maybe none)."""
 
     files_received = Signal(list)
+    new_window_requested = Signal(list)  # ``pdr-sign --new-window [files]``
 
     def __init__(self, path: Path | None = None, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -81,7 +82,9 @@ class InstanceServer(QObject):
             except OSError:
                 return
         try:
-            paths = json.loads(data).get("open", [])
+            request = json.loads(data)
+            paths = [str(p) for p in request.get("open", []) if isinstance(p, str)]
+            new_window = request.get("new_window") is True
         except (ValueError, AttributeError):
             return
-        self.files_received.emit([str(p) for p in paths if isinstance(p, str)])
+        (self.new_window_requested if new_window else self.files_received).emit(paths)

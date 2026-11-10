@@ -25,6 +25,7 @@ def install(window: MainWindow) -> None:
         return action
 
     add([QKeySequence.StandardKey.Open], window.browse)
+    add([QKeySequence.StandardKey.New], window.new_window)
     add([QKeySequence.StandardKey.Close], lambda: window._with_tab(window.close_tab))
     add(["Ctrl+Tab"], lambda: window._cycle_tab(1))
     add(["Ctrl+Shift+Tab", "Ctrl+Backtab"], lambda: window._cycle_tab(-1))

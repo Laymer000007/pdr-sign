@@ -29,9 +29,14 @@ def socket_path() -> Path:
     return path
 
 
-def send_to_running(paths: list[str], path: Path | None = None) -> bool:
-    """Hand ``paths`` to a running instance. False when there isn't one."""
-    message = json.dumps({"open": [str(Path(p).resolve()) for p in paths]}).encode()
+NEW_WINDOW_FLAG = "--new-window"
+
+
+def send_to_running(paths: list[str], path: Path | None = None, new_window: bool = False) -> bool:
+    """Hand ``paths`` to a running instance (in a new window if asked). False when there
+    isn't one."""
+    request = {"open": [str(Path(p).resolve()) for p in paths], "new_window": new_window}
+    message = json.dumps(request).encode()
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
             sock.settimeout(TIMEOUT_S)
@@ -41,6 +46,11 @@ def send_to_running(paths: list[str], path: Path | None = None) -> bool:
             return sock.recv(16) == b"ok"
     except OSError:
         return False
+
+
+def wants_new_window(argv: list[str]) -> bool:
+    """``pdr-sign --new-window`` (the launcher's "New Window" action)."""
+    return NEW_WINDOW_FLAG in argv[1:]
 
 
 def file_args(argv: list[str]) -> list[str]:

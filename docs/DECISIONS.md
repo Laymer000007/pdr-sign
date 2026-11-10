@@ -569,3 +569,19 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   otherwise a drag selects PDF text as before. Dragging one selected item moves them all.
 - Ctrl+C decides by what's selected: words selected while typing in an item → that
   text; selected items → the items; else selected page text.
+
+## Multiple windows (v1.1.0, "app: multiple windows")
+
+- One process, many windows: `ui/windows.WindowManager` makes them (Ctrl+N, main menu
+  → New Window, a tab moved or dragged out, the launcher's "New Window" action =
+  `pdr-sign --new-window`, which a second launch hands to the running instance), and
+  shares one render thread, signature library, settings and recent list between them.
+  The theme follows in every window.
+- Files from Files / Open With go to the most recently focused window; a file already
+  open in any window is brought to the front there, never opened twice.
+- A tab moves with everything it owns (document, undo history, page, zoom): its signal
+  connections are cut from the old window and made to the new one
+  (`ui/window_tabs.attach/detach`). Fill & Sign, the title and unsaved-change prompts
+  are per window; closing the last window quits (Qt's quitOnLastWindowClosed).
+- Tab bar: right-click → Move to New Window / Close; dragging a tab 40 px above or
+  below the bar moves it to a new window (dragging along the bar still reorders).

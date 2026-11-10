@@ -16,6 +16,7 @@ from pdr_sign.services.recent import RecentFiles
 from pdr_sign.ui import theme, window_actions
 from pdr_sign.ui.main_window import MainWindow
 from pdr_sign.ui.single_instance import InstanceServer
+from pdr_sign.ui.windows import WindowManager
 
 
 @cache
@@ -35,7 +36,7 @@ class ThemeController:
     def __init__(self, app: QApplication, override: str) -> None:
         self.app = app
         self.override = override
-        self.window: MainWindow | None = None
+        self.manager: WindowManager | None = None  # every window follows the theme
         self.tokens = theme.tokens_for(theme.resolve_scheme(override))
         self._apply()
         QGuiApplication.styleHints().colorSchemeChanged.connect(self._on_system_change)
@@ -57,8 +58,8 @@ class ThemeController:
     def _apply(self) -> None:
         self.app.setPalette(theme.build_palette(self.tokens))
         self.app.setStyleSheet(theme.build_qss(self.tokens))
-        if self.window is not None:
-            self.window.set_tokens(self.tokens)
+        if self.manager is not None:
+            self.manager.set_tokens(self.tokens)
 
 
 def configure(app: QApplication, user_settings: settings_service.Settings) -> ThemeController:
@@ -81,10 +82,12 @@ def build_window(
     user_settings: settings_service.Settings | None = None,
     recent: RecentFiles | None = None,
 ) -> MainWindow:
-    window = MainWindow(controller.tokens, user_settings, recent)
-    controller.window = window
-    window.theme_controller = controller
-    return window
+    """The first window (and the window manager that makes the others)."""
+    if controller.manager is None:
+        controller.manager = WindowManager(
+            controller, user_settings or settings_service.Settings(), recent or RecentFiles()
+        )
+    return controller.manager.new_window(show=False)
 
 
 def desktop_file_name() -> str:
@@ -109,8 +112,11 @@ def run(argv: Sequence[str], files: list[str]) -> int:
     controller = configure(app, user_settings)
     window = build_window(controller, user_settings)
 
+    manager = controller.manager
+    assert manager is not None
     server = InstanceServer(parent=app)
-    server.files_received.connect(window.open_paths)
+    server.files_received.connect(manager.open_paths)
+    server.new_window_requested.connect(lambda paths: manager.open_paths(paths, new_window=True))
     server.start()
     app.aboutToQuit.connect(server.stop)
 

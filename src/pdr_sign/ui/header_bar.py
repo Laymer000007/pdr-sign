@@ -57,6 +57,7 @@ class HeaderBar(QWidget):
     settings_requested = Signal()
     print_requested = Signal()
     support_requested = Signal()
+    new_window_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -112,6 +113,12 @@ class HeaderBar(QWidget):
         self.menu_button = self._add_icon(icon_button("ellipsis-vertical", "Main menu"))
         self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(self.menu_button)
+        new_window = menu.addAction("New Window")
+        new_window.setShortcut("Ctrl+N")
+        new_window.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)  # the window owns it
+        new_window.setShortcutVisibleInContextMenu(True)
+        new_window.triggered.connect(self.new_window_requested)
+        menu.addSeparator()
         self.print_action = QAction("Print…", menu)
         self.print_action.setShortcut("Ctrl+P")
         # Shown in the menu for discoverability, but the window owns Ctrl+P; a second
