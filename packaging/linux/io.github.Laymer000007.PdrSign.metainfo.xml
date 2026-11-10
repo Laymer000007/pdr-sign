@@ -83,6 +83,20 @@
     <display_length compare="ge">768</display_length>
   </requires>
   <releases>
+    <release version="1.1.0" date="2026-11-10">
+      <description>
+        <p>Feedback from two weeks of daily use.</p>
+        <ul>
+          <li>Several windows side by side: New Window (Ctrl+N), or drag a tab out</li>
+          <li>Copy, cut, paste and duplicate placed items; select several at once</li>
+          <li>Signatures, initials and stamps stay editable after Save</li>
+          <li>Click empty space on a page to start typing there</li>
+          <li>Signed copies put text exactly where it was on screen</li>
+          <li>Fixes for a selection that could get stuck when switching tabs, and for a
+          blue highlight that stayed behind in text items</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-10-26">
       <description>
         <p>First release.</p>

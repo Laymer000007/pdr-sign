@@ -16,17 +16,22 @@ features — ever.
 
 - **Read:** continuous scroll, crisp HiDPI rendering, thumbnails, outline, links,
   full-text search, text selection and copy, tabs, recent files.
-- **Fill:** click any form field to start filling; add text, ✓, ✗, dots, lines and
-  dates anywhere on the page; undo and redo everything.
+- **Fill:** click any form field to start filling, or click empty space on the page to
+  type there; add ✓, ✗, dots, lines and dates anywhere; copy, cut, paste and duplicate
+  items (Ctrl+C / X / V / D), select several with Shift-click or a drag; undo and redo
+  everything.
 - **Sign:** draw a signature, type it in a handwriting font, or clean up a phone photo
   of it; the same for initials. Saved signatures stay on your computer.
 - **Stamp:** upload a scan or photo of a company stamp — the background is removed and
   its colours kept; place it at its real size, turn and fade it.
-- **Save:** your entries stay editable in PDR Sign and visible in every PDF reader.
+- **Save:** your entries — signatures and stamps included — stay editable in PDR Sign
+  and visible in every PDF reader.
   **Save signed copy** writes a new file next to the original with everything fixed
   into the pages; the original stays unchanged for corrections.
 - **Print:** one dialog with printer, page range, copies, paper, orientation and
   "Fit to page" / "Actual size".
+- **Windows:** open several windows side by side (Ctrl+N, or drag a tab out of the tab
+  bar); each keeps its own documents and undo history.
 
 ## Install
 
@@ -52,7 +57,7 @@ Download `pdr-sign_<version>_amd64.deb` from the
 [Releases](https://github.com/Laymer000007/pdr-sign/releases) page, then:
 
 ```bash
-sudo apt install ./pdr-sign_1.0.0_amd64.deb
+sudo apt install ./pdr-sign_1.1.0_amd64.deb
 ```
 
 Remove it with `sudo apt remove pdr-sign`.
@@ -63,8 +68,8 @@ Download `PDR-sign-<version>-x86_64.AppImage` from the
 [Releases](https://github.com/Laymer000007/pdr-sign/releases) page, then:
 
 ```bash
-chmod +x PDR-sign-1.0.0-x86_64.AppImage
-./PDR-sign-1.0.0-x86_64.AppImage
+chmod +x PDR-sign-1.1.0-x86_64.AppImage
+./PDR-sign-1.1.0-x86_64.AppImage
 ```
 
 ### Check your download

@@ -50,6 +50,17 @@ Install one at a time (remove the previous one first; they share the app ID).
         copies, paper, orientation, scaling); a range like `2-3, 5` prints just those.
         Snap without `cups-control`: the dialog shows the one-time command and Copy.
 
+16. [ ] **Windows:** Ctrl+N opens a second window; drag a tab out of the bar → its own
+        window; right-click a tab → Move to New Window; the launcher's right-click →
+        New Window; Open With goes to the window used last; closing the last window quits.
+17. [ ] **Copy/paste:** select items (Shift-click, or drag a box on empty space with Fill
+        & Sign open), Ctrl+C, point at another page/tab/window, Ctrl+V — they land at the
+        pointer; Ctrl+D duplicates; right-click menu; one Ctrl+Z undoes each paste.
+18. [ ] **Click to type:** a click on empty page space starts a text box; a drag still
+        selects text; links, fields and items behave as before.
+19. [ ] **Editable signatures:** Save, close, reopen — signature and stamp can be moved,
+        turned and deleted; Firefox and Papers show them; Save signed copy fixes them.
+
 ## Snap only
 
 - [ ] `snap connections pdr-sign` shows home, removable-media, cups-control, desktop, wayland,
