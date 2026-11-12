@@ -585,3 +585,15 @@ Choices made where the build spec was silent or needed interpretation. Newest la
   are per window; closing the last window quits (Qt's quitOnLastWindowClosed).
 - Tab bar: right-click → Move to New Window / Close; dragging a tab 40 px above or
   below the bar moves it to a new window (dragging along the bar still reorders).
+
+## Store listing wording (after v1.1.0)
+
+- Store title "PDR Sign – PDF Reader & Signer" and summary "PDF reader to fill and sign
+  forms" (snap and AppStream), so searches for *PDF reader*, *fill*, *sign* and *forms*
+  find it. The app itself, the launcher and About keep "PDR Sign" and the tagline.
+- AppStream keywords add reader, viewer, fill, sign and e-signature.
+- One exception to the no-brand rule, decided by the owner: the AppStream description
+  has a single factual compatibility sentence naming the most common desktop PDF reader,
+  after the owner opened saved and signed copies in it and they displayed correctly.
+  No keyword use, no comparison, nothing in the app, icons or colours.
+  `tests/test_architecture.py` allows exactly that sentence in exactly that file.

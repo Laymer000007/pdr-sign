@@ -18,6 +18,15 @@ SKIP_DIRS = {
     ".pytest_cache",
 }
 SKIP_FILES = {"BUILD_PROMPT.md"}  # the brief itself states the rule
+# The owner's one exception: a factual compatibility line in the store description,
+# checked by hand in that reader. Nowhere else, and only this exact sentence.
+ALLOWED = {
+    Path("packaging/linux/io.github.Laymer000007.PdrSign.metainfo.xml"): (
+        "forms filled and signed with pdr sign display correctly in firefox, "
+        + "ado"
+        + "be reader and other pdf readers."
+    ),
+}
 TEXT_SUFFIXES = {
     ".py",
     ".md",
@@ -71,6 +80,11 @@ def test_no_forbidden_brand_names() -> None:
         ):
             continue
         text = path.read_text(encoding="utf-8", errors="ignore").lower()
+        allowed = ALLOWED.get(path.relative_to(ROOT))
+        if allowed:
+            text = " ".join(text.split())
+            assert text.count(allowed) == 1, f"{path.name}: compatibility line changed"
+            text = text.replace(allowed, "")
         hits.extend(f"{path.relative_to(ROOT)}: {w}" for w in FORBIDDEN if w in text)
     assert not hits
 

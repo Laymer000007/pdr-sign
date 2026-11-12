@@ -1,5 +1,6 @@
 """Users see "PDR Sign" with the tagline "Portable Document Read and Sign"; package,
-command and app ID stay ``pdr-sign`` / ``io.github.Laymer000007.PdrSign``."""
+command and app ID stay ``pdr-sign`` / ``io.github.Laymer000007.PdrSign``. Store
+listings use search-friendly wording instead of the tagline."""
 
 from __future__ import annotations
 
@@ -15,6 +16,8 @@ from pdr_sign.ui.dialogs import AboutDialog
 
 ROOT = Path(__file__).resolve().parents[1]
 LINUX = ROOT / "packaging" / "linux"
+STORE_TITLE = "PDR Sign – PDF Reader & Signer"
+STORE_SUMMARY = "PDF reader to fill and sign forms"
 
 
 def test_names() -> None:
@@ -36,13 +39,13 @@ def test_appstream() -> None:
     root = ET.parse(LINUX / f"{APP_ID}.metainfo.xml").getroot()
     assert root.findtext("id") == APP_ID
     assert root.findtext("name") == APP_NAME
-    assert root.findtext("summary") == TAGLINE
+    assert root.findtext("summary") == STORE_SUMMARY
 
 
 def test_snap_deb_readme() -> None:
     snap = (ROOT / "packaging" / "snap" / "snapcraft.yaml").read_text(encoding="utf-8")
     assert "\nname: pdr-sign\n" in snap
-    assert f"\ntitle: {APP_NAME}\n" in snap and f"\nsummary: {TAGLINE}\n" in snap
+    assert f"\ntitle: {STORE_TITLE}\n" in snap and f"\nsummary: {STORE_SUMMARY}\n" in snap
     control = (ROOT / "packaging" / "deb" / "control.in").read_text(encoding="utf-8")
     assert "Package: pdr-sign\n" in control and f"Description: {TAGLINE}\n" in control
     readme = (ROOT / "README.md").read_text(encoding="utf-8")

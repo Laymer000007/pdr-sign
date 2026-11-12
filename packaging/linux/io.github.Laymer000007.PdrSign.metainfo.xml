@@ -4,7 +4,7 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>AGPL-3.0-or-later</project_license>
   <name>PDR Sign</name>
-  <summary>Portable Document Read and Sign</summary>
+  <summary>PDF reader to fill and sign forms</summary>
   <developer id="io.github.laymer000007">
     <name>Laymer000007</name>
   </developer>
@@ -27,6 +27,9 @@
       the pages, while the original stays unchanged for corrections.
     </p>
     <p>
+      Forms filled and signed with PDR Sign display correctly in Firefox, Adobe Reader and other PDF readers.
+    </p>
+    <p>
       PDR Sign is free and open source, with no ads, subscriptions or paywalled
       features. It is supported by donations.
     </p>
@@ -47,8 +50,13 @@
   </categories>
   <keywords>
     <keyword>PDF</keyword>
+    <keyword>reader</keyword>
+    <keyword>viewer</keyword>
+    <keyword>fill</keyword>
+    <keyword>sign</keyword>
     <keyword>form</keyword>
     <keyword>signature</keyword>
+    <keyword>e-signature</keyword>
     <keyword>stamp</keyword>
   </keywords>
   <branding>

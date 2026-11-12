@@ -44,6 +44,8 @@ Check them in Firefox or in `tools/pdfjs-check/viewer.html` (same engine).
   launch check, and exactly one commit. Stop and summarise after each phase.
 - Never use the competitor brand/product names listed in `BUILD_PROMPT.md` §0, or
   look-alike icons or colours, anywhere. `tests/test_architecture.py` checks for them.
+  The single exception is one compatibility sentence in the AppStream description
+  (see `docs/DECISIONS.md`, "Store listing wording"); the test allows only that.
 - Ask before adding any dependency not in spec section 2. Pins are exact, in `pyproject.toml`.
 - `src/pdr_sign/services/` must never import PySide6. `tests/test_architecture.py`
   enforces this. UI and services talk only through plain dataclasses.
