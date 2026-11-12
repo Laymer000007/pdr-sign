@@ -588,9 +588,9 @@ Choices made where the build spec was silent or needed interpretation. Newest la
 
 ## Store listing wording (after v1.1.0)
 
-- Store title "PDR Sign – PDF Reader & Signer" and summary "PDF reader to fill and sign
-  forms" (snap and AppStream), so searches for *PDF reader*, *fill*, *sign* and *forms*
-  find it. The app itself, the launcher and About keep "PDR Sign" and the tagline.
+- Store title "PDR Sign – PDF Reader & Signer" and summary "Portable Document Format
+  (PDF) Read and Sign" (snap and AppStream; the owner's choice of summary), so the
+  listing names PDF and what the app does. The app itself, the launcher and About keep "PDR Sign" and the tagline.
 - AppStream keywords add reader, viewer, fill, sign and e-signature.
 - One exception to the no-brand rule, decided by the owner: the AppStream description
   has a single factual compatibility sentence naming the most common desktop PDF reader,

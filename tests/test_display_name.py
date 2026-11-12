@@ -17,7 +17,7 @@ from pdr_sign.ui.dialogs import AboutDialog
 ROOT = Path(__file__).resolve().parents[1]
 LINUX = ROOT / "packaging" / "linux"
 STORE_TITLE = "PDR Sign – PDF Reader & Signer"
-STORE_SUMMARY = "PDF reader to fill and sign forms"
+STORE_SUMMARY = "Portable Document Format (PDF) Read and Sign"
 
 
 def test_names() -> None:

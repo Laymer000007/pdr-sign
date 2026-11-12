@@ -2,7 +2,7 @@
 # repository root (snapcraft builds from there) and runs snapcraft / action-build.
 name: pdr-sign
 title: PDR Sign – PDF Reader & Signer
-summary: PDF reader to fill and sign forms
+summary: Portable Document Format (PDF) Read and Sign
 base: core24
 adopt-info: pdr-sign
 grade: stable
